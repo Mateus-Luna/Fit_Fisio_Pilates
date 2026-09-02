@@ -1,0 +1,31 @@
+{
+  "name": "fit_fisio_pilates",
+  "version": "1.0.0",
+  "description": "Sistema de gestão FitFisio Pilates",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "frontend": "npm --prefix frontend run dev",
+    "backend": "npm --prefix backend run start:dev",
+    "electron": "electron .",
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\" \"wait-on http://localhost:5173 && npm run electron\""
+
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mateus-Luna/Fit_Fisio_Pilates.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Mateus-Luna/Fit_Fisio_Pilates/issues"
+  },
+  "homepage": "https://github.com/Mateus-Luna/Fit_Fisio_Pilates#readme",
+  "devDependencies": {
+    "concurrently": "^9.2.4",
+    "electron": "^41.7.1",
+    "wait-on": "^9.1.0"
+  }
+}
