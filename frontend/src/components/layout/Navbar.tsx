@@ -63,60 +63,70 @@ export default function Navbar() {
           </span>
 
           <NavLink
-            to="/modalities/academia"
+            to="/modalities"
             className={linkClass}
           >
-            <span>🏋️</span>
-            Academia
+            <span>⚙️</span>
+            Gerenciar modalidades
           </NavLink>
 
-          <NavLink
-            to="/modalities/hidroginastica"
-            className={linkClass}
-          >
-            <span>🏊</span>
-            Hidroginástica
-          </NavLink>
+          <div className="nav-submenu">
+            <NavLink
+              to="/modalities/academia"
+              className={linkClass}
+            >
+              <span>🏋️</span>
+              Academia
+            </NavLink>
 
-          <NavLink
-            to="/modalities/hidroterapia"
-            className={linkClass}
-          >
-            <span>💧</span>
-            Hidroterapia
-          </NavLink>
+            <NavLink
+              to="/modalities/hidroginastica"
+              className={linkClass}
+            >
+              <span>🏊</span>
+              Hidroginástica
+            </NavLink>
 
-          <NavLink
-            to="/modalities/natacao-adulto"
-            className={linkClass}
-          >
-            <span>🏊</span>
-            Natação Adulto
-          </NavLink>
+            <NavLink
+              to="/modalities/hidroterapia"
+              className={linkClass}
+            >
+              <span>💧</span>
+              Hidroterapia
+            </NavLink>
 
-          <NavLink
-            to="/modalities/natacao-crianca"
-            className={linkClass}
-          >
-            <span>🧒</span>
-            Natação Criança
-          </NavLink>
+            <NavLink
+              to="/modalities/natacao-adulto"
+              className={linkClass}
+            >
+              <span>🏊</span>
+              Natação Adulto
+            </NavLink>
 
-          <NavLink
-            to="/modalities/pilates"
-            className={linkClass}
-          >
-            <span>🧘</span>
-            Pilates
-          </NavLink>
+            <NavLink
+              to="/modalities/natacao-crianca"
+              className={linkClass}
+            >
+              <span>🧒</span>
+              Natação Criança
+            </NavLink>
 
-          <NavLink
-            to="/modalities/fisioterapia"
-            className={linkClass}
-          >
-            <span>🩺</span>
-            Fisioterapia
-          </NavLink>
+            <NavLink
+              to="/modalities/pilates"
+              className={linkClass}
+            >
+              <span>🧘</span>
+              Pilates
+            </NavLink>
+
+            <NavLink
+              to="/modalities/fisioterapia"
+              className={linkClass}
+            >
+              <span>🩺</span>
+              Fisioterapia
+            </NavLink>
+          </div>
         </div>
 
         <div className="nav-section">

@@ -1,0 +1,485 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum StudentType {
+  ADULT
+  CHILD
+}
+
+enum EnrollmentStatus {
+  PENDING_DOCUMENTATION
+  AWAITING_APPROVAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentMethod {
+  PIX
+  CARD
+  CASH
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum DiscountCategory {
+  MULTIPLE_MODALITIES
+  FAMILY
+  MANUAL
+}
+
+enum NotificationType {
+  PAYMENT_OVERDUE
+  PAYMENT_RECEIVED
+  CLASS_FULL
+  ENROLLMENT_PENDING
+  DOCUMENT_PENDING
+  ABSENCE
+  SYSTEM
+}
+
+enum NotificationChannel {
+  SYSTEM
+  EMAIL
+  WHATSAPP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  READ
+  FAILED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  JUSTIFIED
+  CANCELLED
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CertificateType {
+  MEDICAL
+  FITNESS
+  OTHER
+}
+
+// ============================================================
+// USER
+// Apenas uma usuária: Aline
+// ============================================================
+
+model User {
+  id           String @id @default(uuid())
+  name         String
+  email        String @unique
+  passwordHash String
+
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notifications Notification[]
+
+  @@index([email])
+}
+
+// ============================================================
+// FAMILY
+// ============================================================
+
+model Family {
+  id          String  @id @default(uuid())
+  name        String
+  observation String?
+
+  students Student[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// STUDENT
+// ============================================================
+
+model Student {
+  id String @id @default(uuid())
+
+  name        String
+  birthDate   DateTime
+  phone       String
+  address     String?
+  observation String?
+
+  type StudentType
+
+  rg  String?
+  cpf String? @unique
+
+  active Boolean @default(true)
+
+  familyId String?
+  family   Family? @relation(fields: [familyId], references: [id], onDelete: SetNull)
+
+  enrollments         Enrollment[]
+  payments            Payment[]
+  serviceReceipt      ServiceReceipt?
+  medicalCertificates MedicalCertificate[]
+  attendances         Attendance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([phone])
+  @@index([familyId])
+}
+
+// ============================================================
+// MODALITIES
+// ============================================================
+
+model Modality {
+  id String @id @default(uuid())
+
+  name        String  @unique
+  description String?
+
+  monthlyPrice Decimal @db.Decimal(10, 2)
+
+  requiresClass Boolean @default(false)
+
+  // null = modalidade sem limite
+  capacity Int?
+
+  active Boolean @default(true)
+
+  enrollments Enrollment[]
+  classes     Class[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// ENROLLMENT
+// ============================================================
+
+model Enrollment {
+  id String @id @default(uuid())
+
+  studentId  String
+  modalityId String
+
+  student  Student  @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  modality Modality @relation(fields: [modalityId], references: [id], onDelete: Restrict)
+
+  status EnrollmentStatus @default(PENDING_DOCUMENTATION)
+
+  startDate DateTime
+  endDate   DateTime?
+
+  contractedPrice Decimal @db.Decimal(10, 2)
+  discountAmount  Decimal @default(0) @db.Decimal(10, 2)
+  finalPrice      Decimal @db.Decimal(10, 2)
+  discountPercentage Decimal @default(0) @db.Decimal(5, 2)
+
+  observation String?
+
+  classId String?
+  class   Class?  @relation(fields: [classId], references: [id], onDelete: SetNull)
+
+  payments    Payment[]
+  attendances Attendance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([modalityId])
+  @@index([classId])
+  @@index([status])
+}
+
+// ============================================================
+// CLASS
+// ============================================================
+
+model Class {
+  id String @id @default(uuid())
+
+  name String
+
+  modalityId String
+  modality   Modality @relation(fields: [modalityId], references: [id], onDelete: Restrict)
+
+  capacity Int?
+
+  active Boolean @default(true)
+
+  schedules   ClassSchedule[]
+  enrollments Enrollment[]
+  attendances Attendance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([modalityId])
+}
+
+// ============================================================
+// CLASS SCHEDULE
+// ============================================================
+
+model ClassSchedule {
+  id String @id @default(uuid())
+
+  classId String
+  class   Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  dayOfWeek Int
+
+  startTime String
+  endTime   String
+
+  room String?
+
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([classId])
+  @@index([dayOfWeek])
+}
+
+// ============================================================
+// PAYMENT
+// ============================================================
+
+model Payment {
+  id String @id @default(uuid())
+
+  studentId    String
+  enrollmentId String?
+
+  student    Student     @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  enrollment Enrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+
+  referenceMonth Int
+  referenceYear  Int
+
+  dueDate DateTime
+
+  amount Decimal @db.Decimal(10, 2)
+
+  discountAmount Decimal @default(0) @db.Decimal(10, 2)
+
+  finalAmount Decimal @db.Decimal(10, 2)
+
+  method PaymentMethod?
+
+  status PaymentStatus @default(PENDING)
+
+  paidAt DateTime?
+
+  transactionId String?
+
+  receiptGenerated Boolean @default(false)
+
+  observation String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([enrollmentId, referenceYear, referenceMonth])
+  @@index([studentId])
+  @@index([enrollmentId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([referenceYear, referenceMonth])
+}
+
+// ============================================================
+// DISCOUNT RULE
+// ============================================================
+
+model DiscountRule {
+  id String @id @default(uuid())
+
+  name String
+
+  category DiscountCategory
+
+  type DiscountType
+
+  minimumQuantity Int?
+
+  value Decimal @db.Decimal(10, 2)
+
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([active])
+}
+
+// ============================================================
+// SERVICE RECEIPT
+// ============================================================
+
+model ServiceReceipt {
+  id String @id @default(uuid())
+
+  studentId String  @unique
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  documentPath String?
+
+  status DocumentStatus @default(PENDING)
+
+  filledAt   DateTime?
+  approvedAt DateTime?
+
+  observation String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// MEDICAL CERTIFICATE
+// ============================================================
+
+model MedicalCertificate {
+  id String @id @default(uuid())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  type CertificateType @default(MEDICAL)
+
+  documentPath String
+
+  issueDate      DateTime?
+  expirationDate DateTime?
+
+  status DocumentStatus @default(PENDING)
+
+  observation String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([expirationDate])
+}
+
+// ============================================================
+// NOTIFICATION
+// ============================================================
+
+model Notification {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  channel NotificationChannel @default(SYSTEM)
+
+  title   String
+  message String
+
+  status NotificationStatus @default(PENDING)
+
+  readAt DateTime?
+  sentAt DateTime?
+
+  studentId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([studentId])
+}
+
+// ============================================================
+// ATTENDANCE
+// ============================================================
+
+model Attendance {
+  id String @id @default(uuid())
+
+  studentId    String
+  classId      String?
+  enrollmentId String?
+
+  student    Student     @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  class      Class?      @relation(fields: [classId], references: [id], onDelete: SetNull)
+  enrollment Enrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+
+  date DateTime
+
+  status AttendanceStatus
+
+  observation String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([classId])
+  @@index([date])
+}
+
+// ============================================================
+// SYSTEM SETTINGS
+// ============================================================
+
+model SystemSettings {
+  id String @id @default(uuid())
+
+  key   String @unique
+  value String
+
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
