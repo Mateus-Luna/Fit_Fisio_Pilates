@@ -17,7 +17,7 @@ export interface CreateModalityData {
   description?: string;
   monthlyPrice: number;
   requiresClass: boolean;
-  capacity?: number;
+  capacity?: number | null;
   active?: boolean;
 }
 
@@ -26,7 +26,7 @@ export interface UpdateModalityData {
   description?: string;
   monthlyPrice?: number;
   requiresClass?: boolean;
-  capacity?: number;
+  capacity?: number | null;
   active?: boolean;
 }
 

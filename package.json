@@ -2,14 +2,12 @@
   "name": "fit_fisio_pilates",
   "version": "1.0.0",
   "description": "Sistema de gestão FitFisio Pilates",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "frontend": "npm --prefix frontend run dev",
-    "backend": "npm --prefix backend run start:dev",
-    "electron": "electron .",
-    "dev": "concurrently \"npm run backend\" \"npm run frontend\" \"wait-on http://localhost:5173 && npm run electron\""
-
+    "dev": "node server.js",
+    "build": "npm --prefix frontend run build",
+    "lint": "npm --prefix frontend run lint",
+    "start": "node server.js"
   },
   "repository": {
     "type": "git",
@@ -27,5 +25,9 @@
     "concurrently": "^9.2.4",
     "electron": "^41.7.1",
     "wait-on": "^9.1.0"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
   }
 }

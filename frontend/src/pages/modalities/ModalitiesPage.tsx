@@ -26,6 +26,7 @@ export default function ModalitiesPage() {
   const [description, setDescription] = useState('');
   const [monthlyPrice, setMonthlyPrice] = useState('');
   const [requiresClass, setRequiresClass] = useState(false);
+  const [capacityMode, setCapacityMode] = useState<'unlimited' | 'limited'>('unlimited');
   const [capacity, setCapacity] = useState('');
 
   async function loadModalities() {
@@ -52,6 +53,7 @@ export default function ModalitiesPage() {
     setDescription('');
     setMonthlyPrice('');
     setRequiresClass(false);
+    setCapacityMode('unlimited');
     setCapacity('');
     setEditingModality(null);
   }
@@ -68,11 +70,12 @@ export default function ModalitiesPage() {
     setDescription(modality.description ?? '');
     setMonthlyPrice(String(modality.monthlyPrice));
     setRequiresClass(modality.requiresClass);
-    setCapacity(
-      modality.capacity !== null
-        ? String(modality.capacity)
-        : '',
-    );
+    const hasCap =
+      modality.capacity !== null &&
+      modality.capacity !== undefined &&
+      Number(modality.capacity) > 0;
+    setCapacityMode(hasCap ? 'limited' : 'unlimited');
+    setCapacity(hasCap ? String(modality.capacity) : '');
 
     setIsFormOpen(true);
   }
@@ -94,19 +97,22 @@ export default function ModalitiesPage() {
       return;
     }
 
-    if (requiresClass) {
-      const parsedCapacity = Number(capacity);
-
-      if (
-        !capacity ||
-        Number.isNaN(parsedCapacity) ||
-        parsedCapacity <= 0
-      ) {
+    let parsedCapacity: number | null = null;
+    if (capacityMode === 'limited') {
+      parsedCapacity = Number(capacity);
+      if (!capacity || Number.isNaN(parsedCapacity) || parsedCapacity <= 0) {
         setError(
-          'Informe uma capacidade válida para modalidades com turma.',
+          'Informe um limite de alunos válido (número maior que zero).',
         );
         return;
       }
+    }
+
+    if (requiresClass && (!parsedCapacity || parsedCapacity < 1)) {
+      setError(
+        'Modalidades que exigem turma fixa necessitam de uma capacidade definida de alunos.',
+      );
+      return;
     }
 
     try {
@@ -117,9 +123,7 @@ export default function ModalitiesPage() {
         description: description.trim() || undefined,
         monthlyPrice: price,
         requiresClass,
-        capacity: requiresClass
-          ? Number(capacity)
-          : undefined,
+        capacity: parsedCapacity,
       };
 
       if (editingModality) {
@@ -271,42 +275,78 @@ export default function ModalitiesPage() {
 
                 <select
                   value={requiresClass ? 'yes' : 'no'}
-                  onChange={(event) =>
-                    setRequiresClass(
-                      event.target.value === 'yes',
-                    )
-                  }
+                  onChange={(event) => {
+                    const isYes = event.target.value === 'yes';
+                    setRequiresClass(isYes);
+                    if (isYes && capacityMode === 'unlimited') {
+                      setCapacityMode('limited');
+                      if (!capacity) setCapacity('8');
+                    }
+                  }}
                   className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
                 >
-                  <option value="no">Não</option>
-                  <option value="yes">Sim</option>
+                  <option value="no">Não (Acesso livre / Horário flexível)</option>
+                  <option value="yes">Sim (Aulas em turmas com vagas)</option>
                 </select>
               </div>
             </div>
 
-            {requiresClass && (
+            <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-sm font-medium">
-                  Capacidade
+                  Capacidade de alunos
                 </label>
 
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={capacity}
-                  onChange={(event) =>
-                    setCapacity(event.target.value)
-                  }
-                  placeholder="Ex.: 8"
+                <select
+                  value={capacityMode}
+                  onChange={(event) => {
+                    const mode = event.target.value as 'unlimited' | 'limited';
+                    setCapacityMode(mode);
+                    if (mode === 'unlimited') {
+                      setCapacity('');
+                      if (requiresClass) {
+                        setRequiresClass(false);
+                      }
+                    } else if (!capacity) {
+                      setCapacity('8');
+                    }
+                  }}
                   className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
-                />
-
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Quantidade máxima de alunos por turma.
-                </p>
+                >
+                  <option value="unlimited">Sem limite fixo de turma</option>
+                  <option value="limited">Definir limite de alunos (1, 2, 3...)</option>
+                </select>
               </div>
-            )}
+
+              {capacityMode === 'limited' ? (
+                <div>
+                  <label className="mb-1 block text-sm font-medium">
+                    Limite máximo de alunos {requiresClass ? 'por turma' : '(geral)'}
+                  </label>
+
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={capacity}
+                    onChange={(event) =>
+                      setCapacity(event.target.value)
+                    }
+                    placeholder="Ex.: 8"
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="mb-1 block text-sm font-medium">
+                    Status do limite
+                  </label>
+                  <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                    Sem limite fixo de turma
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="flex justify-end gap-2">
               <button

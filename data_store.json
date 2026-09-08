@@ -1,0 +1,235 @@
+{
+  "users": [
+    {
+      "id": "usr-1",
+      "name": "Aline",
+      "email": "aline@fitfisio.com.br",
+      "password": "admin",
+      "active": true,
+      "createdAt": "2026-09-08T04:22:08.495Z"
+    },
+    {
+      "id": "usr-mts61tz8-9d9vv",
+      "name": "Aline",
+      "email": "alineguimaraesbb@hotmail.com",
+      "password": "123456",
+      "active": true,
+      "createdAt": "2026-09-08T04:25:13.988Z"
+    }
+  ],
+  "families": [
+    {
+      "id": "fam-1",
+      "name": "Família Silva",
+      "observation": "Desconto familiar aplicado",
+      "createdAt": "2026-01-10T00:00:00.000Z",
+      "updatedAt": "2026-01-10T00:00:00.000Z"
+    },
+    {
+      "id": "fam-2",
+      "name": "Família Oliveira",
+      "observation": "Pais e filhos matriculados na natação",
+      "createdAt": "2026-02-15T00:00:00.000Z",
+      "updatedAt": "2026-02-15T00:00:00.000Z"
+    }
+  ],
+  "modalities": [
+    {
+      "id": "mod-1",
+      "name": "Pilates",
+      "description": "Aulas personalizadas de pilates em aparelhos e solo",
+      "monthlyPrice": 220,
+      "requiresClass": false,
+      "capacity": null,
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "mod-2",
+      "name": "Fisioterapia",
+      "description": "Atendimento clínico e reabilitação postural",
+      "monthlyPrice": 180,
+      "requiresClass": false,
+      "capacity": null,
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "mod-3",
+      "name": "Hidroginástica",
+      "description": "Exercícios aeróbicos aquáticos em grupo",
+      "monthlyPrice": 170,
+      "requiresClass": true,
+      "capacity": 8,
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-09-08T04:51:19.403Z"
+    },
+    {
+      "id": "mod-4",
+      "name": "Hidroterapia",
+      "description": "Fisioterapia aquática para alívio articular",
+      "monthlyPrice": 240,
+      "requiresClass": true,
+      "capacity": 5,
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "mod-5",
+      "name": "Natação Adulto",
+      "description": "Aperfeiçoamento de técnicas e condicionamento",
+      "monthlyPrice": 190,
+      "requiresClass": true,
+      "capacity": 8,
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "mod-6",
+      "name": "Natação Criança",
+      "description": "Iniciação à natação e adaptação aquática infantil",
+      "monthlyPrice": 190,
+      "requiresClass": true,
+      "capacity": 8,
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "mod-7",
+      "name": "Academia",
+      "description": "Musculação e treino funcional assistido",
+      "monthlyPrice": 150,
+      "requiresClass": false,
+      "capacity": null,
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-09-08T04:50:57.920Z"
+    }
+  ],
+  "students": [
+    {
+      "id": "std-1",
+      "name": "Carlos Eduardo Silva",
+      "birthDate": "1990-04-12T00:00:00.000Z",
+      "phone": "(11) 98765-4321",
+      "address": "Rua das Palmeiras, 142 - Centro",
+      "observation": "Recuperação de lombalgia crônica",
+      "type": "ADULT",
+      "rg": "34.567.890-1",
+      "cpf": "123.456.789-01",
+      "active": true,
+      "familyId": "fam-1",
+      "createdAt": "2026-02-01T00:00:00.000Z",
+      "updatedAt": "2026-02-01T00:00:00.000Z"
+    },
+    {
+      "id": "std-2",
+      "name": "Mariana Silva",
+      "birthDate": "1993-09-24T00:00:00.000Z",
+      "phone": "(11) 98765-4322",
+      "address": "Rua das Palmeiras, 142 - Centro",
+      "observation": "Pilates para fortalecimento do core",
+      "type": "ADULT",
+      "rg": "42.123.456-7",
+      "cpf": "234.567.890-12",
+      "active": true,
+      "familyId": "fam-1",
+      "createdAt": "2026-02-05T00:00:00.000Z",
+      "updatedAt": "2026-02-05T00:00:00.000Z"
+    },
+    {
+      "id": "std-3",
+      "name": "Lucas Oliveira",
+      "birthDate": "2017-06-18T00:00:00.000Z",
+      "phone": "(11) 99123-8877",
+      "address": "Av. Brasil, 800 - Apto 32",
+      "observation": "Autorização médica entregue para natação",
+      "type": "CHILD",
+      "rg": null,
+      "cpf": null,
+      "active": true,
+      "familyId": "fam-2",
+      "createdAt": "2026-02-20T00:00:00.000Z",
+      "updatedAt": "2026-02-20T00:00:00.000Z"
+    },
+    {
+      "id": "std-mts63fa4-hxrzt",
+      "name": "Mateus Medeiros",
+      "birthDate": "2001-01-10T00:00:00.000Z",
+      "phone": "83996655002",
+      "address": "Avenida Ana de Azevedo, 92",
+      "observation": null,
+      "type": "ADULT",
+      "rg": "3999777",
+      "cpf": "09911104411",
+      "familyId": null,
+      "active": true,
+      "createdAt": "2026-09-08T04:26:28.252Z",
+      "updatedAt": "2026-09-08T04:26:28.252Z"
+    }
+  ],
+  "enrollments": [
+    {
+      "id": "enr-1",
+      "studentId": "std-1",
+      "modalityId": "mod-1",
+      "status": "ACTIVE",
+      "startDate": "2026-02-01T00:00:00.000Z",
+      "endDate": null,
+      "contractedPrice": 220,
+      "discountPercentage": 10,
+      "discountAmount": 22,
+      "finalPrice": 198,
+      "observation": "Plano com desconto de família",
+      "createdAt": "2026-02-01T00:00:00.000Z",
+      "updatedAt": "2026-02-01T00:00:00.000Z"
+    },
+    {
+      "id": "enr-2",
+      "studentId": "std-3",
+      "modalityId": "mod-6",
+      "status": "ACTIVE",
+      "startDate": "2026-03-01T00:00:00.000Z",
+      "endDate": null,
+      "contractedPrice": 190,
+      "discountPercentage": 0,
+      "discountAmount": 0,
+      "finalPrice": 190,
+      "observation": "Turma de sábados manhã",
+      "createdAt": "2026-02-20T00:00:00.000Z",
+      "updatedAt": "2026-02-20T00:00:00.000Z"
+    }
+  ],
+  "settings": [
+    {
+      "id": "set-1",
+      "key": "studio_name",
+      "value": "FitFisio Pilates & Saúde",
+      "description": "Nome do estúdio exibido nos relatórios e recibos",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "set-2",
+      "key": "contact_phone",
+      "value": "(11) 98765-4321",
+      "description": "Telefone e WhatsApp oficial",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "set-3",
+      "key": "pix_key",
+      "value": "financeiro@fitfisio.com.br",
+      "description": "Chave Pix para pagamentos de mensalidades",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ]
+}

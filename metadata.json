@@ -1,0 +1,8 @@
+{
+  "name": "FitFisio Pilates",
+  "description": "Sistema de gestão FitFisio Pilates para administração de alunos, famílias, modalidades e matrículas",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+**/node_modules/
 
 # Environment
 .env
@@ -9,6 +10,8 @@ node_modules/
 # Build
 dist/
 build/
+**/dist/
+**/build/
 
 # Logs
 *.log

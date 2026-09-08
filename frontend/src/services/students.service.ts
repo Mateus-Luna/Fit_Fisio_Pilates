@@ -7,6 +7,24 @@ export interface StudentFamily {
   name: string;
 }
 
+export interface StudentEnrollment {
+  id: string;
+  studentId: string;
+  modalityId: string;
+  status: string;
+  startDate?: string;
+  endDate?: string | null;
+  contractedPrice?: number;
+  discountPercentage?: number;
+  discountAmount?: number;
+  finalPrice?: number;
+  observation?: string | null;
+  modality?: {
+    id: string;
+    name: string;
+  };
+}
+
 export interface Student {
   id: string;
   name: string;
@@ -20,6 +38,7 @@ export interface Student {
   active: boolean;
   familyId: string | null;
   family: StudentFamily | null;
+  enrollments?: StudentEnrollment[];
   createdAt: string;
   updatedAt: string;
 }
