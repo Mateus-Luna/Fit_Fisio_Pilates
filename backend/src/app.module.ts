@@ -9,11 +9,13 @@ import { StudentsModule } from './students/students.module';
 import { ModalitiesModule } from './modalities/modalities.module';
 import { SettingsModule } from './settings/settings.module';
 import { DiscountsModule } from './discounts/discounts.module';
+import { EnrollmentsModule } from './enrollments/enrollments.module';
 
 @Module({
   imports: [ConfigModule.forRoot({
       isGlobal: true,
-    }), PrismaModule, AuthModule, FamiliesModule, StudentsModule, ModalitiesModule, SettingsModule, DiscountsModule],
+    }), PrismaModule, AuthModule, FamiliesModule, StudentsModule, ModalitiesModule, SettingsModule, DiscountsModule,
+  EnrollmentsModule],
   controllers: [AppController],
   providers: [AppService],
 })
