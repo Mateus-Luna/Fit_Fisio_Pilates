@@ -119,6 +119,11 @@ export class StudentsService {
     return this.prisma.student.findMany({
       include: {
         family: true,
+        enrollments: {
+          include: {
+            modality: true,
+          },
+        },
       },
       orderBy: {
         name: 'asc',

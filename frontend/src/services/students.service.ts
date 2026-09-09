@@ -52,7 +52,7 @@ export interface CreateStudentData {
   observation?: string;
   rg?: string;
   cpf?: string;
-  familyId?: string;
+  familyId?: string | null;
 }
 
 export interface UpdateStudentData {
@@ -64,7 +64,7 @@ export interface UpdateStudentData {
   observation?: string;
   rg?: string;
   cpf?: string;
-  familyId?: string;
+  familyId?: string | null;
 }
 
 export const studentsService = {

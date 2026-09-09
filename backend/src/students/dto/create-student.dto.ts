@@ -48,6 +48,6 @@ export class CreateStudentDto {
   cpf?: string;
 
   @IsOptional()
-  @IsUUID()
-  familyId?: string;
+  @IsString()
+  familyId?: string | null;
 }

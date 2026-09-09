@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "dev": "node server.js",
+    "postinstall": "npm --prefix frontend install",
     "build": "npm --prefix frontend run build",
     "lint": "npm --prefix frontend run lint",
     "start": "node server.js"

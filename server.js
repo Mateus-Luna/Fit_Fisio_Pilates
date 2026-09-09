@@ -223,13 +223,83 @@ const INITIAL_DATA = {
       updatedAt: new Date('2026-01-01').toISOString(),
     },
   ],
+  classes: [
+    {
+      id: 'cls-1',
+      name: 'Hidro Manhã (Seg/Qua 08:00)',
+      modalityId: 'mod-3',
+      capacity: 8,
+      schedules: [{ dayOfWeek: 1, startTime: '08:00', endTime: '08:50' }, { dayOfWeek: 3, startTime: '08:00', endTime: '08:50' }],
+      active: true,
+      createdAt: new Date('2026-01-01').toISOString(),
+      updatedAt: new Date('2026-01-01').toISOString(),
+    },
+    {
+      id: 'cls-2',
+      name: 'Hidro Tarde (Ter/Qui 16:00)',
+      modalityId: 'mod-3',
+      capacity: 8,
+      schedules: [{ dayOfWeek: 2, startTime: '16:00', endTime: '16:50' }, { dayOfWeek: 4, startTime: '16:00', endTime: '16:50' }],
+      active: true,
+      createdAt: new Date('2026-01-01').toISOString(),
+      updatedAt: new Date('2026-01-01').toISOString(),
+    },
+    {
+      id: 'cls-3',
+      name: 'Hidroterapia Manhã (Ter/Qui 09:00)',
+      modalityId: 'mod-4',
+      capacity: 5,
+      schedules: [{ dayOfWeek: 2, startTime: '09:00', endTime: '09:45' }, { dayOfWeek: 4, startTime: '09:00', endTime: '09:45' }],
+      active: true,
+      createdAt: new Date('2026-01-01').toISOString(),
+      updatedAt: new Date('2026-01-01').toISOString(),
+    },
+    {
+      id: 'cls-4',
+      name: 'Natação Adulto Manhã (Seg/Qua/Sex 07:00)',
+      modalityId: 'mod-5',
+      capacity: 8,
+      schedules: [{ dayOfWeek: 1, startTime: '07:00', endTime: '07:50' }, { dayOfWeek: 3, startTime: '07:00', endTime: '07:50' }, { dayOfWeek: 5, startTime: '07:00', endTime: '07:50' }],
+      active: true,
+      createdAt: new Date('2026-01-01').toISOString(),
+      updatedAt: new Date('2026-01-01').toISOString(),
+    },
+    {
+      id: 'cls-5',
+      name: 'Natação Criança Tarde (Ter/Qui 15:00)',
+      modalityId: 'mod-6',
+      capacity: 8,
+      schedules: [{ dayOfWeek: 2, startTime: '15:00', endTime: '15:45' }, { dayOfWeek: 4, startTime: '15:00', endTime: '15:45' }],
+      active: true,
+      createdAt: new Date('2026-01-01').toISOString(),
+      updatedAt: new Date('2026-01-01').toISOString(),
+    },
+    {
+      id: 'cls-6',
+      name: 'Pilates Manhã (Seg/Qua 08:00)',
+      modalityId: 'mod-1',
+      capacity: 4,
+      schedules: [{ dayOfWeek: 1, startTime: '08:00', endTime: '09:00' }, { dayOfWeek: 3, startTime: '08:00', endTime: '09:00' }],
+      active: true,
+      createdAt: new Date('2026-01-01').toISOString(),
+      updatedAt: new Date('2026-01-01').toISOString(),
+    },
+  ],
+  documents: [],
 };
 
 function loadDb() {
   try {
     if (fs.existsSync(DB_FILE)) {
       const raw = fs.readFileSync(DB_FILE, 'utf8');
-      return JSON.parse(raw);
+      const data = JSON.parse(raw);
+      if (!data.classes || !Array.isArray(data.classes)) {
+        data.classes = INITIAL_DATA.classes;
+      }
+      if (!data.documents || !Array.isArray(data.documents)) {
+        data.documents = [];
+      }
+      return data;
     }
   } catch (err) {
     console.error('Error reading db file:', err);
@@ -504,6 +574,7 @@ function enrichStudent(student) {
     .map((e) => ({
       ...e,
       modality: db.modalities.find((m) => m.id === e.modalityId) || null,
+      class: e.classId ? (db.classes || []).find((c) => c.id === e.classId) || null : null,
     }));
   return {
     ...student,
@@ -527,7 +598,7 @@ app.get(['/students/:id', '/api/students/:id'], (req, res) => {
 });
 
 app.post(['/students', '/api/students'], (req, res) => {
-  const { name, birthDate, phone, address, observation, type, rg, cpf, familyId } = req.body || {};
+  const { name, birthDate, phone, address, observation, type, rg, cpf, familyId, modalityIds, enrollments: initialEnrollments } = req.body || {};
   if (!name || !birthDate || !phone) {
     return res.status(400).json({ message: 'Nome, data de nascimento e telefone são obrigatórios.' });
   }
@@ -551,6 +622,54 @@ app.post(['/students', '/api/students'], (req, res) => {
     updatedAt: new Date().toISOString(),
   };
   db.students.push(newStudent);
+
+  // Atribuir modalidades informadas na criação
+  const itemsToEnroll = Array.isArray(initialEnrollments) && initialEnrollments.length > 0
+    ? initialEnrollments
+    : (Array.isArray(modalityIds) ? modalityIds.map(mId => ({ modalityId: mId })) : []);
+
+  itemsToEnroll.forEach(item => {
+    const mod = db.modalities.find(m => m.id === item.modalityId);
+    if (mod) {
+      const contractedPrice = Number(mod.monthlyPrice) || 0;
+      const pct = Number(item.discountPercentage) || 0;
+      const discountAmount = Math.round((contractedPrice * (pct / 100)) * 100) / 100;
+      const finalPrice = Math.round((contractedPrice - discountAmount) * 100) / 100;
+      const newEnr = {
+        id: generateId('enr'),
+        studentId: newStudent.id,
+        modalityId: mod.id,
+        classId: item.classId || null,
+        status: 'PENDING_DOCUMENTATION',
+        startDate: new Date(item.startDate || Date.now()).toISOString(),
+        endDate: item.endDate ? new Date(item.endDate).toISOString() : null,
+        contractedPrice,
+        discountPercentage: pct,
+        discountAmount,
+        finalPrice,
+        observation: item.observation || null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      db.enrollments.push(newEnr);
+
+      // Gerar recibo inicial de serviço do aluno
+      if (!db.documents) db.documents = [];
+      db.documents.push({
+        id: generateId('doc'),
+        studentId: newStudent.id,
+        enrollmentId: newEnr.id,
+        type: 'RECEIPT',
+        title: `Recibo de Prestação de Serviços - ${mod.name}`,
+        content: `<h3>RECIBO DE PRESTAÇÃO DE SERVIÇO</h3><p>Declaramos que o(a) aluno(a) <strong>${newStudent.name}</strong> está devidamente matriculado(a) na modalidade <strong>${mod.name}</strong> do centro FitFisio Pilates & Saúde.</p><p>Valor da mensalidade contratada: <strong>R$ ${finalPrice.toFixed(2)}</strong>${pct > 0 ? ` (desconto de ${pct}%)` : ''}.</p><p>Data de início: ${new Date().toLocaleDateString('pt-BR')}</p><br/><br/><p>_____________________________________<br/>FitFisio Pilates & Saúde - Aline Guimarães</p>`,
+        status: 'PENDING',
+        issueDate: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  });
+
   saveDb(db);
   res.status(201).json(enrichStudent(newStudent));
 });
@@ -570,7 +689,33 @@ app.patch(['/students/:id', '/api/students/:id'], (req, res) => {
   if (b.type !== undefined) s.type = b.type;
   if (b.rg !== undefined) s.rg = s.type === 'ADULT' ? b.rg : null;
   if (b.cpf !== undefined) s.cpf = s.type === 'ADULT' ? b.cpf : null;
-  if (b.familyId !== undefined) s.familyId = b.familyId || null;
+  if (b.familyId !== undefined) {
+    const oldFamilyId = s.familyId;
+    s.familyId = (b.familyId && b.familyId !== 'null' && b.familyId !== 'undefined') ? String(b.familyId).trim() : null;
+
+    // Sincroniza benefício do desconto familiar (10%) com as matrículas ativas
+    if (s.familyId && s.familyId !== oldFamilyId) {
+      (db.enrollments || []).forEach((e) => {
+        if (e.studentId === s.id && e.status !== 'CANCELLED') {
+          if (!e.discountPercentage || e.discountPercentage === 0) {
+            e.discountPercentage = 10;
+            e.discountAmount = (Number(e.contractedPrice) * 10) / 100;
+            e.finalPrice = Number(e.contractedPrice) - e.discountAmount;
+            e.updatedAt = new Date().toISOString();
+          }
+        }
+      });
+    } else if (!s.familyId && oldFamilyId) {
+      (db.enrollments || []).forEach((e) => {
+        if (e.studentId === s.id && e.status !== 'CANCELLED' && e.discountPercentage === 10) {
+          e.discountPercentage = 0;
+          e.discountAmount = 0;
+          e.finalPrice = Number(e.contractedPrice);
+          e.updatedAt = new Date().toISOString();
+        }
+      });
+    }
+  }
   s.updatedAt = new Date().toISOString();
   saveDb(db);
   res.json(enrichStudent(s));
@@ -664,34 +809,128 @@ app.delete(['/settings/:key', '/api/settings/:key'], (req, res) => {
 });
 
 // -------------------------------------------------------------
+// CLASSES ROUTES
+// -------------------------------------------------------------
+app.get(['/classes', '/api/classes'], (req, res) => {
+  const { modalityId } = req.query;
+  let list = db.classes || [];
+  if (modalityId) {
+    list = list.filter((c) => c.modalityId === modalityId);
+  }
+  const enriched = list.map((c) => {
+    const modality = (db.modalities || []).find((m) => m.id === c.modalityId) || null;
+    const enrolledCount = (db.enrollments || []).filter(
+      (e) => e.classId === c.id && ['ACTIVE', 'AWAITING_APPROVAL', 'PENDING_DOCUMENTATION'].includes(e.status),
+    ).length;
+    return {
+      ...c,
+      modality,
+      enrolledCount,
+    };
+  });
+  res.json(enriched);
+});
+
+app.get(['/classes/:id', '/api/classes/:id'], (req, res) => {
+  const c = (db.classes || []).find((item) => item.id === req.params.id);
+  if (!c) return res.status(404).json({ message: 'Turma não encontrada.' });
+  const modality = (db.modalities || []).find((m) => m.id === c.modalityId) || null;
+  const enrolledCount = (db.enrollments || []).filter(
+    (e) => e.classId === c.id && ['ACTIVE', 'AWAITING_APPROVAL', 'PENDING_DOCUMENTATION'].includes(e.status),
+  ).length;
+  res.json({ ...c, modality, enrolledCount });
+});
+
+// -------------------------------------------------------------
+// DISCOUNTS ROUTES
+// -------------------------------------------------------------
+app.post(['/discounts/calculate', '/api/discounts/calculate'], (req, res) => {
+  const contractedPrice = Number(req.body.contractedPrice) || 0;
+  const discountPercentage = Number(req.body.discountPercentage) || 0;
+
+  if (contractedPrice < 0) {
+    return res.status(400).json({ message: 'O valor contratado não pode ser negativo.' });
+  }
+  if (discountPercentage < 0 || discountPercentage > 100) {
+    return res.status(400).json({ message: 'O desconto deve estar entre 0% e 100%.' });
+  }
+
+  const discountAmount = Math.round((contractedPrice * (discountPercentage / 100)) * 100) / 100;
+  const finalPrice = Math.round((contractedPrice - discountAmount) * 100) / 100;
+
+  res.json({
+    contractedPrice: Math.round(contractedPrice * 100) / 100,
+    discountPercentage: Math.round(discountPercentage * 100) / 100,
+    discountAmount,
+    finalPrice,
+  });
+});
+
+// -------------------------------------------------------------
 // ENROLLMENTS ROUTES
 // -------------------------------------------------------------
-app.get(['/enrollments', '/api/enrollments'], (req, res) => {
-  const enriched = db.enrollments.map((e) => ({
+function enrichEnrollment(e) {
+  const student = (db.students || []).find((s) => s.id === e.studentId) || null;
+  const modality = (db.modalities || []).find((m) => m.id === e.modalityId) || null;
+  const classItem = e.classId ? (db.classes || []).find((c) => c.id === e.classId) || null : null;
+  const documents = (db.documents || []).filter((d) => d.enrollmentId === e.id || (d.studentId === e.studentId && !d.enrollmentId));
+  return {
     ...e,
-    student: db.students.find((s) => s.id === e.studentId),
-    modality: db.modalities.find((m) => m.id === e.modalityId),
-  }));
+    student,
+    modality,
+    class: classItem,
+    documents,
+  };
+}
+
+app.get(['/enrollments', '/api/enrollments'], (req, res) => {
+  let list = db.enrollments || [];
+  const { studentId, modalityId, status } = req.query;
+  if (studentId) list = list.filter((e) => e.studentId === studentId);
+  if (modalityId) list = list.filter((e) => e.modalityId === modalityId);
+  if (status) list = list.filter((e) => e.status === status);
+
+  const enriched = list.map(enrichEnrollment);
+  enriched.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   res.json(enriched);
 });
 
 app.get(['/enrollments/:id', '/api/enrollments/:id'], (req, res) => {
-  const enrollment = db.enrollments.find((e) => e.id === req.params.id);
+  const enrollment = (db.enrollments || []).find((e) => e.id === req.params.id);
   if (!enrollment) return res.status(404).json({ message: 'Matrícula não encontrada.' });
-  res.json({
-    ...enrollment,
-    student: db.students.find((s) => s.id === enrollment.studentId),
-    modality: db.modalities.find((m) => m.id === enrollment.modalityId),
-  });
+  res.json(enrichEnrollment(enrollment));
 });
 
 app.post(['/enrollments', '/api/enrollments'], (req, res) => {
-  const { studentId, modalityId, startDate, endDate, discountPercentage = 0, observation } = req.body;
-  const modality = db.modalities.find((m) => m.id === modalityId);
+  const { studentId, modalityId, classId, startDate, endDate, discountPercentage = 0, observation } = req.body || {};
+
+  const student = (db.students || []).find((s) => s.id === studentId);
+  if (!student) return res.status(404).json({ message: 'Aluno não encontrado.' });
+
+  const modality = (db.modalities || []).find((m) => m.id === modalityId);
   if (!modality) return res.status(404).json({ message: 'Modalidade não encontrada.' });
+  if (!modality.active) return res.status(400).json({ message: 'Não é possível realizar matrícula em uma modalidade inativa.' });
+
+  // Validação: Impedir duplicidade de matrícula na mesma modalidade
+  const activeStatuses = ['PENDING_DOCUMENTATION', 'AWAITING_APPROVAL', 'ACTIVE', 'SUSPENDED'];
+  const existing = (db.enrollments || []).find(
+    (e) => e.studentId === studentId && e.modalityId === modalityId && activeStatuses.includes(e.status)
+  );
+  if (existing) {
+    return res.status(409).json({ message: 'O aluno já possui uma matrícula ativa ou em andamento nessa modalidade.' });
+  }
+
+  // Validação de turma se informada
+  if (classId) {
+    const cls = (db.classes || []).find((c) => c.id === classId);
+    if (!cls) return res.status(404).json({ message: 'Turma não encontrada.' });
+    if (cls.modalityId !== modalityId) {
+      return res.status(400).json({ message: 'A turma selecionada não pertence à modalidade da matrícula.' });
+    }
+  }
 
   const contractedPrice = Number(modality.monthlyPrice) || 0;
-  const pct = Number(discountPercentage) || 0;
+  const pct = Math.max(0, Math.min(100, Number(discountPercentage) || 0));
   const discountAmount = Math.round((contractedPrice * (pct / 100)) * 100) / 100;
   const finalPrice = Math.round((contractedPrice - discountAmount) * 100) / 100;
 
@@ -699,9 +938,11 @@ app.post(['/enrollments', '/api/enrollments'], (req, res) => {
     id: generateId('enr'),
     studentId,
     modalityId,
-    status: 'ACTIVE',
+    classId: classId || null,
+    status: 'PENDING_DOCUMENTATION',
     startDate: new Date(startDate || Date.now()).toISOString(),
     endDate: endDate ? new Date(endDate).toISOString() : null,
+    approvedAt: null,
     contractedPrice,
     discountPercentage: pct,
     discountAmount,
@@ -710,13 +951,230 @@ app.post(['/enrollments', '/api/enrollments'], (req, res) => {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
+
   db.enrollments.push(newEnrollment);
-  saveDb(db);
-  res.status(201).json({
-    ...newEnrollment,
-    student: db.students.find((s) => s.id === studentId),
-    modality,
+
+  // Gerar recibo de prestação de serviços inicial para esta matrícula
+  if (!db.documents) db.documents = [];
+  db.documents.push({
+    id: generateId('doc'),
+    studentId,
+    enrollmentId: newEnrollment.id,
+    type: 'RECEIPT',
+    title: `Recibo de Prestação de Serviços - ${modality.name}`,
+    content: `<h3>RECIBO DE PRESTAÇÃO DE SERVIÇO</h3><p>Declaramos para os devidos fins que o(a) aluno(a) <strong>${student.name}</strong> celebrou matrícula no curso/modalidade <strong>${modality.name}</strong> junto ao <strong>FitFisio Pilates & Saúde</strong>.</p><p>Valor mensal de tabela: R$ ${contractedPrice.toFixed(2)}<br/>Desconto acordado: ${pct}% (R$ ${discountAmount.toFixed(2)})<br/><strong>Valor final mensal: R$ ${finalPrice.toFixed(2)}</strong></p><p>Data de início: ${new Date(newEnrollment.startDate).toLocaleDateString('pt-BR')}</p><p>Cláusula: As mensalidades possuem vencimento mensal e garantem o acesso aos treinos e acompanhamento profissional especializado.</p><br/><br/><p>_____________________________________<br/>FitFisio Pilates & Saúde - Aline Guimarães</p>`,
+    status: 'PENDING',
+    issueDate: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   });
+
+  saveDb(db);
+  res.status(201).json(enrichEnrollment(newEnrollment));
+});
+
+app.patch(['/enrollments/:id', '/api/enrollments/:id'], (req, res) => {
+  const enrollment = (db.enrollments || []).find((e) => e.id === req.params.id);
+  if (!enrollment) return res.status(404).json({ message: 'Matrícula não encontrada.' });
+
+  if (enrollment.status === 'CANCELLED' || enrollment.status === 'COMPLETED') {
+    return res.status(400).json({ message: 'Não é possível editar uma matrícula cancelada ou concluída.' });
+  }
+
+  const { modalityId, classId, startDate, endDate, discountPercentage, observation } = req.body || {};
+
+  if (modalityId && modalityId !== enrollment.modalityId) {
+    const mod = (db.modalities || []).find((m) => m.id === modalityId);
+    if (!mod) return res.status(404).json({ message: 'Modalidade não encontrada.' });
+    enrollment.modalityId = modalityId;
+    enrollment.contractedPrice = Number(mod.monthlyPrice) || 0;
+  }
+
+  if (classId !== undefined) {
+    enrollment.classId = classId || null;
+  }
+
+  if (startDate) enrollment.startDate = new Date(startDate).toISOString();
+  if (endDate !== undefined) enrollment.endDate = endDate ? new Date(endDate).toISOString() : null;
+  if (observation !== undefined) enrollment.observation = observation;
+
+  if (discountPercentage !== undefined || modalityId) {
+    const pct = discountPercentage !== undefined ? Math.max(0, Math.min(100, Number(discountPercentage) || 0)) : enrollment.discountPercentage;
+    enrollment.discountPercentage = pct;
+    enrollment.discountAmount = Math.round((enrollment.contractedPrice * (pct / 100)) * 100) / 100;
+    enrollment.finalPrice = Math.round((enrollment.contractedPrice - enrollment.discountAmount) * 100) / 100;
+  }
+
+  enrollment.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json(enrichEnrollment(enrollment));
+});
+
+app.patch(['/enrollments/:id/request-approval', '/api/enrollments/:id/request-approval'], (req, res) => {
+  const enrollment = (db.enrollments || []).find((e) => e.id === req.params.id);
+  if (!enrollment) return res.status(404).json({ message: 'Matrícula não encontrada.' });
+
+  if (enrollment.status !== 'PENDING_DOCUMENTATION') {
+    return res.status(400).json({ message: 'A matrícula precisa estar pendente de documentação.' });
+  }
+
+  enrollment.status = 'AWAITING_APPROVAL';
+  enrollment.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json(enrichEnrollment(enrollment));
+});
+
+app.patch(['/enrollments/:id/approve', '/api/enrollments/:id/approve'], (req, res) => {
+  const enrollment = (db.enrollments || []).find((e) => e.id === req.params.id);
+  if (!enrollment) return res.status(404).json({ message: 'Matrícula não encontrada.' });
+
+  if (enrollment.status !== 'AWAITING_APPROVAL') {
+    return res.status(400).json({ message: 'A matrícula precisa estar aguardando aprovação para ser homologada.' });
+  }
+
+  enrollment.status = 'ACTIVE';
+  enrollment.approvedAt = new Date().toISOString();
+  enrollment.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json(enrichEnrollment(enrollment));
+});
+
+app.patch(['/enrollments/:id/suspend', '/api/enrollments/:id/suspend'], (req, res) => {
+  const enrollment = (db.enrollments || []).find((e) => e.id === req.params.id);
+  if (!enrollment) return res.status(404).json({ message: 'Matrícula não encontrada.' });
+
+  if (enrollment.status !== 'ACTIVE') {
+    return res.status(400).json({ message: 'Somente matrículas ativas podem ser suspensas.' });
+  }
+
+  enrollment.status = 'SUSPENDED';
+  enrollment.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json(enrichEnrollment(enrollment));
+});
+
+app.patch(['/enrollments/:id/reactivate', '/api/enrollments/:id/reactivate'], (req, res) => {
+  const enrollment = (db.enrollments || []).find((e) => e.id === req.params.id);
+  if (!enrollment) return res.status(404).json({ message: 'Matrícula não encontrada.' });
+
+  if (enrollment.status !== 'SUSPENDED') {
+    return res.status(400).json({ message: 'Somente matrículas suspensas podem ser reativadas.' });
+  }
+
+  enrollment.status = 'ACTIVE';
+  enrollment.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json(enrichEnrollment(enrollment));
+});
+
+app.patch(['/enrollments/:id/cancel', '/api/enrollments/:id/cancel'], (req, res) => {
+  const enrollment = (db.enrollments || []).find((e) => e.id === req.params.id);
+  if (!enrollment) return res.status(404).json({ message: 'Matrícula não encontrada.' });
+
+  if (enrollment.status === 'CANCELLED' || enrollment.status === 'COMPLETED') {
+    return res.status(400).json({ message: 'A matrícula já está encerrada.' });
+  }
+
+  enrollment.status = 'CANCELLED';
+  enrollment.endDate = enrollment.endDate || new Date().toISOString();
+  enrollment.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json(enrichEnrollment(enrollment));
+});
+
+app.delete(['/enrollments/:id', '/api/enrollments/:id'], (req, res) => {
+  const enrollment = (db.enrollments || []).find((e) => e.id === req.params.id);
+  if (!enrollment) return res.status(404).json({ message: 'Matrícula não encontrada.' });
+
+  enrollment.status = 'CANCELLED';
+  enrollment.endDate = enrollment.endDate || new Date().toISOString();
+  enrollment.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json(enrichEnrollment(enrollment));
+});
+
+// -------------------------------------------------------------
+// DOCUMENTS ROUTES (RECEIPTS & CERTIFICATES)
+// -------------------------------------------------------------
+function enrichDocument(doc) {
+  const student = (db.students || []).find((s) => s.id === doc.studentId) || null;
+  const enrollment = doc.enrollmentId ? (db.enrollments || []).find((e) => e.id === doc.enrollmentId) || null : null;
+  const modality = enrollment ? (db.modalities || []).find((m) => m.id === enrollment.modalityId) || null : null;
+  return {
+    ...doc,
+    student,
+    enrollment: enrollment ? { ...enrollment, modality } : null,
+  };
+}
+
+app.get(['/documents', '/api/documents'], (req, res) => {
+  let list = db.documents || [];
+  const { studentId, enrollmentId, type } = req.query;
+  if (studentId) list = list.filter((d) => d.studentId === studentId);
+  if (enrollmentId) list = list.filter((d) => d.enrollmentId === enrollmentId);
+  if (type) list = list.filter((d) => d.type === type);
+
+  const enriched = list.map(enrichDocument);
+  enriched.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  res.json(enriched);
+});
+
+app.get(['/documents/:id', '/api/documents/:id'], (req, res) => {
+  const doc = (db.documents || []).find((d) => d.id === req.params.id);
+  if (!doc) return res.status(404).json({ message: 'Documento não encontrado.' });
+  res.json(enrichDocument(doc));
+});
+
+app.post(['/documents', '/api/documents'], (req, res) => {
+  const { studentId, enrollmentId, type = 'RECEIPT', title, content, issueDate, expirationDate, observation, status = 'APPROVED' } = req.body || {};
+
+  const student = (db.students || []).find((s) => s.id === studentId);
+  if (!student) return res.status(404).json({ message: 'Aluno não encontrado.' });
+
+  const newDoc = {
+    id: generateId('doc'),
+    studentId,
+    enrollmentId: enrollmentId || null,
+    type, // 'RECEIPT' | 'CERTIFICATE'
+    title: title || (type === 'RECEIPT' ? 'Recibo de Prestação de Serviços' : 'Atestado Médico / Declaração'),
+    content: content || '',
+    status,
+    issueDate: issueDate ? new Date(issueDate).toISOString() : new Date().toISOString(),
+    expirationDate: expirationDate ? new Date(expirationDate).toISOString() : null,
+    observation: observation || null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (!db.documents) db.documents = [];
+  db.documents.push(newDoc);
+  saveDb(db);
+  res.status(201).json(enrichDocument(newDoc));
+});
+
+app.patch(['/documents/:id', '/api/documents/:id'], (req, res) => {
+  const doc = (db.documents || []).find((d) => d.id === req.params.id);
+  if (!doc) return res.status(404).json({ message: 'Documento não encontrado.' });
+
+  const b = req.body || {};
+  if (b.title !== undefined) doc.title = b.title;
+  if (b.content !== undefined) doc.content = b.content;
+  if (b.status !== undefined) doc.status = b.status;
+  if (b.issueDate !== undefined) doc.issueDate = b.issueDate ? new Date(b.issueDate).toISOString() : null;
+  if (b.expirationDate !== undefined) doc.expirationDate = b.expirationDate ? new Date(b.expirationDate).toISOString() : null;
+  if (b.observation !== undefined) doc.observation = b.observation;
+
+  doc.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json(enrichDocument(doc));
+});
+
+app.delete(['/documents/:id', '/api/documents/:id'], (req, res) => {
+  const index = (db.documents || []).findIndex((d) => d.id === req.params.id);
+  if (index === -1) return res.status(404).json({ message: 'Documento não encontrado.' });
+  db.documents.splice(index, 1);
+  saveDb(db);
+  res.status(204).end();
 });
 
 // -------------------------------------------------------------

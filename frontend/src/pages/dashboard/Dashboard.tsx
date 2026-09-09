@@ -226,12 +226,31 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1>Olá, {user?.name || 'Aline'}! 👋</h1>
           <p>
             Painel de administração e resumo operacional do FitFisio.
           </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Link
+            to="/enrollments"
+            className="btn-secondary"
+            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>📋</span>
+            <span>Matrículas</span>
+          </Link>
+          <Link
+            to="/enrollments/new"
+            className="btn-edit-main"
+            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>➕</span>
+            <span>Nova Matrícula</span>
+          </Link>
         </div>
       </div>
 

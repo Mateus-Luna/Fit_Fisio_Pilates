@@ -49,6 +49,14 @@ export default function Navbar() {
           </NavLink>
 
           <NavLink
+            to="/enrollments"
+            className={linkClass}
+          >
+            <span>📋</span>
+            Matrículas
+          </NavLink>
+
+          <NavLink
             to="/families"
             className={linkClass}
           >

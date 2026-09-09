@@ -65,7 +65,7 @@
       "capacity": 8,
       "active": true,
       "createdAt": "2026-01-01T00:00:00.000Z",
-      "updatedAt": "2026-09-08T04:51:19.403Z"
+      "updatedAt": "2026-01-01T00:00:00.000Z"
     },
     {
       "id": "mod-4",
@@ -104,12 +104,12 @@
       "id": "mod-7",
       "name": "Academia",
       "description": "Musculação e treino funcional assistido",
-      "monthlyPrice": 150,
+      "monthlyPrice": 200,
       "requiresClass": false,
       "capacity": null,
       "active": true,
       "createdAt": "2026-01-01T00:00:00.000Z",
-      "updatedAt": "2026-09-08T04:50:57.920Z"
+      "updatedAt": "2026-09-09T21:14:36.436Z"
     }
   ],
   "students": [
@@ -118,15 +118,15 @@
       "name": "Carlos Eduardo Silva",
       "birthDate": "1990-04-12T00:00:00.000Z",
       "phone": "(11) 98765-4321",
-      "address": "Rua das Palmeiras, 142 - Centro",
+      "address": "Rua das Palmeiras, 142b - Centro",
       "observation": "Recuperação de lombalgia crônica",
       "type": "ADULT",
       "rg": "34.567.890-1",
       "cpf": "123.456.789-01",
       "active": true,
-      "familyId": "fam-1",
+      "familyId": null,
       "createdAt": "2026-02-01T00:00:00.000Z",
-      "updatedAt": "2026-02-01T00:00:00.000Z"
+      "updatedAt": "2026-09-09T20:58:26.971Z"
     },
     {
       "id": "std-2",
@@ -147,7 +147,7 @@
       "id": "std-3",
       "name": "Lucas Oliveira",
       "birthDate": "2017-06-18T00:00:00.000Z",
-      "phone": "(11) 99123-8877",
+      "phone": "8399665555",
       "address": "Av. Brasil, 800 - Apto 32",
       "observation": "Autorização médica entregue para natação",
       "type": "CHILD",
@@ -156,7 +156,7 @@
       "active": true,
       "familyId": "fam-2",
       "createdAt": "2026-02-20T00:00:00.000Z",
-      "updatedAt": "2026-02-20T00:00:00.000Z"
+      "updatedAt": "2026-09-09T20:52:32.180Z"
     },
     {
       "id": "std-mts63fa4-hxrzt",
@@ -168,10 +168,10 @@
       "type": "ADULT",
       "rg": "3999777",
       "cpf": "09911104411",
-      "familyId": null,
+      "familyId": "fam-1",
       "active": true,
       "createdAt": "2026-09-08T04:26:28.252Z",
-      "updatedAt": "2026-09-08T04:26:28.252Z"
+      "updatedAt": "2026-09-09T20:57:26.644Z"
     }
   ],
   "enrollments": [
@@ -183,12 +183,12 @@
       "startDate": "2026-02-01T00:00:00.000Z",
       "endDate": null,
       "contractedPrice": 220,
-      "discountPercentage": 10,
-      "discountAmount": 22,
-      "finalPrice": 198,
+      "discountPercentage": 0,
+      "discountAmount": 0,
+      "finalPrice": 220,
       "observation": "Plano com desconto de família",
       "createdAt": "2026-02-01T00:00:00.000Z",
-      "updatedAt": "2026-02-01T00:00:00.000Z"
+      "updatedAt": "2026-09-09T20:58:26.971Z"
     },
     {
       "id": "enr-2",
@@ -231,5 +231,139 @@
       "createdAt": "2026-01-01T00:00:00.000Z",
       "updatedAt": "2026-01-01T00:00:00.000Z"
     }
-  ]
+  ],
+  "classes": [
+    {
+      "id": "cls-1",
+      "name": "Hidro Manhã (Seg/Qua 08:00)",
+      "modalityId": "mod-3",
+      "capacity": 8,
+      "schedules": [
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "08:50"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "08:50"
+        }
+      ],
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "cls-2",
+      "name": "Hidro Tarde (Ter/Qui 16:00)",
+      "modalityId": "mod-3",
+      "capacity": 8,
+      "schedules": [
+        {
+          "dayOfWeek": 2,
+          "startTime": "16:00",
+          "endTime": "16:50"
+        },
+        {
+          "dayOfWeek": 4,
+          "startTime": "16:00",
+          "endTime": "16:50"
+        }
+      ],
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "cls-3",
+      "name": "Hidroterapia Manhã (Ter/Qui 09:00)",
+      "modalityId": "mod-4",
+      "capacity": 5,
+      "schedules": [
+        {
+          "dayOfWeek": 2,
+          "startTime": "09:00",
+          "endTime": "09:45"
+        },
+        {
+          "dayOfWeek": 4,
+          "startTime": "09:00",
+          "endTime": "09:45"
+        }
+      ],
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "cls-4",
+      "name": "Natação Adulto Manhã (Seg/Qua/Sex 07:00)",
+      "modalityId": "mod-5",
+      "capacity": 8,
+      "schedules": [
+        {
+          "dayOfWeek": 1,
+          "startTime": "07:00",
+          "endTime": "07:50"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "07:00",
+          "endTime": "07:50"
+        },
+        {
+          "dayOfWeek": 5,
+          "startTime": "07:00",
+          "endTime": "07:50"
+        }
+      ],
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "cls-5",
+      "name": "Natação Criança Tarde (Ter/Qui 15:00)",
+      "modalityId": "mod-6",
+      "capacity": 8,
+      "schedules": [
+        {
+          "dayOfWeek": 2,
+          "startTime": "15:00",
+          "endTime": "15:45"
+        },
+        {
+          "dayOfWeek": 4,
+          "startTime": "15:00",
+          "endTime": "15:45"
+        }
+      ],
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "cls-6",
+      "name": "Pilates Manhã (Seg/Qua 08:00)",
+      "modalityId": "mod-1",
+      "capacity": 4,
+      "schedules": [
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "09:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "09:00"
+        }
+      ],
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "documents": []
 }

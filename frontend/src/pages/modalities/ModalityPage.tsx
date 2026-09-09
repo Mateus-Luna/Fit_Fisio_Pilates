@@ -231,15 +231,20 @@ export default function ModalityPage() {
 
   const icon = (slug && MODALITY_ICONS[slug]) || '🏅';
 
-  // Alunos matriculados nesta modalidade
-  const enrolledStudents = students.filter((s: Student) => {
-    if (!s.active || !s.enrollments) return false;
-    return s.enrollments.some(
-      (e) =>
-        e.status === 'ACTIVE' &&
-        (e.modalityId === modality.id ||
-          slugify(e.modality?.name || '') === slug),
-    );
+  // Alunos matriculados nesta modalidade (qualquer status de matrícula relevante)
+  const modalityEnrollments = students.flatMap((s: Student) => {
+    if (!s.enrollments) return [];
+    return s.enrollments
+      .filter(
+        (e) =>
+          e.status !== 'CANCELLED' &&
+          (e.modalityId === modality.id ||
+            slugify(e.modality?.name || '') === slug),
+      )
+      .map((e) => ({
+        student: s,
+        enrollment: e,
+      }));
   });
 
   return (
@@ -486,17 +491,45 @@ export default function ModalityPage() {
           </div>
 
           <div>
-            <h3
+            <div
               style={{
-                fontSize: '16px',
-                fontWeight: 700,
-                marginBottom: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '14px',
               }}
             >
-              Alunos com Matrícula Ativa ({enrolledStudents.length})
-            </h3>
+              <h3
+                style={{
+                  fontSize: '16px',
+                  fontWeight: 700,
+                  margin: 0,
+                  color: '#1e293b',
+                }}
+              >
+                Alunos Matriculados nesta Modalidade ({modalityEnrollments.length})
+              </h3>
 
-            {enrolledStudents.length === 0 ? (
+              <Link
+                to={`/enrollments/new?modalityId=${modality.id}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#ffffff',
+                  backgroundColor: '#0d9488',
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  textDecoration: 'none',
+                }}
+              >
+                + Matricular Aluno nesta Modalidade
+              </Link>
+            </div>
+
+            {modalityEnrollments.length === 0 ? (
               <div
                 style={{
                   background: '#f9fafb',
@@ -507,8 +540,7 @@ export default function ModalityPage() {
                   fontSize: '13px',
                 }}
               >
-                Nenhum aluno cadastrado com matrícula ativa nesta modalidade no
-                momento.
+                Nenhum aluno matriculado nesta modalidade no momento.
               </div>
             ) : (
               <div
@@ -518,42 +550,73 @@ export default function ModalityPage() {
                   gap: '8px',
                 }}
               >
-                {enrolledStudents.map((student) => (
-                  <div
-                    key={student.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '12px 16px',
-                      background: '#f9fafb',
-                      borderRadius: '8px',
-                      border: '1px solid #e5e7eb',
-                    }}
-                  >
-                    <div>
-                      <strong style={{ display: 'block', fontSize: '14px' }}>
-                        {student.name}
-                      </strong>
-                      <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                        Telefone: {student.phone} •{' '}
-                        {student.type === 'CHILD' ? 'Criança' : 'Adulto'}
-                      </span>
-                    </div>
+                {modalityEnrollments.map(({ student, enrollment }) => {
+                  const statusColors: Record<string, { bg: string; text: string; label: string }> = {
+                    ACTIVE: { bg: '#dcfce7', text: '#166534', label: 'Homologada / Ativa' },
+                    AWAITING_APPROVAL: { bg: '#dbeafe', text: '#1e40af', label: 'Aguardando Homologação' },
+                    PENDING_DOCUMENTATION: { bg: '#fef3c7', text: '#92400e', label: 'Pendente Documentos' },
+                    SUSPENDED: { bg: '#f3e8ff', text: '#6b21a8', label: 'Suspensa' },
+                  };
+                  const badge = statusColors[enrollment.status] || {
+                    bg: '#f1f5f9',
+                    text: '#475569',
+                    label: enrollment.status,
+                  };
 
-                    <Link
-                      to="/students"
+                  return (
+                    <div
+                      key={enrollment.id}
                       style={{
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        color: '#4f46e5',
-                        textDecoration: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 16px',
+                        background: '#f8fafc',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
                       }}
                     >
-                      Ver aluno →
-                    </Link>
-                  </div>
-                ))}
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <strong style={{ fontSize: '14px', color: '#1e293b' }}>
+                            {student.name}
+                          </strong>
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              backgroundColor: badge.bg,
+                              color: badge.text,
+                              padding: '2px 8px',
+                              borderRadius: '9999px',
+                            }}
+                          >
+                            {badge.label}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '12px', color: '#64748b' }}>
+                          Telefone: {student.phone} •{' '}
+                          {student.type === 'CHILD' ? 'Criança' : 'Adulto'}
+                          {enrollment.finalPrice ? ` • Mensalidade: R$ ${Number(enrollment.finalPrice).toFixed(2)}` : ''}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <Link
+                          to={`/enrollments/${enrollment.id}`}
+                          style={{
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            color: '#0d9488',
+                            textDecoration: 'none',
+                          }}
+                        >
+                          Ver Matrícula & Recibo →
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
