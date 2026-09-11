@@ -20,6 +20,7 @@ describe('EnrollmentsService', () => {
       findUnique: Mock<(...args: any[]) => any>;
       findFirst: Mock<(...args: any[]) => any>;
       update: Mock<(...args: any[]) => any>;
+      count: Mock<(...args: any[]) => any>;
     };
     student: {
       findUnique: Mock<(...args: any[]) => any>;
@@ -84,6 +85,7 @@ describe('EnrollmentsService', () => {
         findUnique: jest.fn(),
         findFirst: jest.fn(),
         update: jest.fn(),
+        count: jest.fn(),
       },
 
       student: {
@@ -138,6 +140,7 @@ describe('EnrollmentsService', () => {
       prisma.modality.findUnique.mockResolvedValue(
         mockModality,
       );
+      prisma.enrollment.count.mockResolvedValue(0);
 
       prisma.enrollment.findFirst.mockResolvedValue(
         null,
@@ -417,6 +420,50 @@ describe('EnrollmentsService', () => {
         prisma.enrollment.create,
       ).not.toHaveBeenCalled();
     });
+    it('should throw BadRequestException when modality requires a class and classId is not provided', async () => {
+      prisma.modality.findUnique.mockResolvedValue({
+        ...mockModality,
+        requiresClass: true,
+      });
+
+      await expect(
+        service.create(dto),
+      ).rejects.toThrow(
+        'Esta modalidade exige a seleção de uma turma.',
+      );
+
+      expect(
+        prisma.enrollment.create,
+      ).not.toHaveBeenCalled();
+    });
+    it('should throw ConflictException when class is full', async () => {
+  prisma.modality.findUnique.mockResolvedValue({
+    ...mockModality,
+    requiresClass: true,
+  });
+
+  prisma.class.findUnique.mockResolvedValue({
+    ...mockClass,
+    capacity: 1,
+  });
+
+  prisma.enrollment.count.mockResolvedValue(1);
+
+  const enrollmentWithClass = {
+    ...dto,
+    classId: 'class-1',
+  };
+
+  await expect(
+    service.create(enrollmentWithClass),
+  ).rejects.toThrow(
+    'A turma selecionada está lotada.',
+  );
+
+  expect(
+    prisma.enrollment.create,
+  ).not.toHaveBeenCalled();
+});
   });
 
   describe('findAll', () => {
@@ -601,6 +648,8 @@ describe('EnrollmentsService', () => {
         updatedEnrollment,
       );
 
+      prisma.modality.findUnique.mockResolvedValue(mockModality);
+
       const result = await service.update(
         'enrollment-1',
         {
@@ -724,6 +773,9 @@ describe('EnrollmentsService', () => {
     });
 
     it('should update discount and final price', async () => {
+      
+      prisma.modality.findUnique.mockResolvedValue(mockModality);
+
       await service.update('enrollment-1', {
         discountPercentage: 10,
       });
@@ -731,7 +783,7 @@ describe('EnrollmentsService', () => {
       expect(
         discountsService.calculate,
       ).toHaveBeenCalledWith(200, 10);
-
+      
       expect(
         prisma.enrollment.update,
       ).toHaveBeenCalledWith(
@@ -868,6 +920,8 @@ describe('EnrollmentsService', () => {
     });
 
     it('should throw BadRequestException when new class belongs to another modality', async () => {
+      prisma.modality.findUnique.mockResolvedValue(mockModality);
+
       prisma.class.findUnique.mockResolvedValue({
         ...mockClass,
         modalityId: 'another-modality',
@@ -875,18 +929,18 @@ describe('EnrollmentsService', () => {
 
       await expect(
         service.update('enrollment-1', {
-          classId: 'class-1',
+          classId: 'class-2',
         }),
       ).rejects.toThrow(
         'A turma selecionada não pertence à modalidade da matrícula.',
       );
 
-      expect(
-        prisma.enrollment.update,
-      ).not.toHaveBeenCalled();
+      expect(prisma.enrollment.update).not.toHaveBeenCalled();
     });
 
     it('should throw BadRequestException when new class is inactive', async () => {
+      prisma.modality.findUnique.mockResolvedValue(mockModality);
+
       prisma.class.findUnique.mockResolvedValue({
         ...mockClass,
         active: false,
@@ -897,11 +951,140 @@ describe('EnrollmentsService', () => {
           classId: 'class-1',
         }),
       ).rejects.toThrow(
-        'Não é possível utilizar uma turma inativa.',
+        'Não é possível matricular o aluno em uma turma inativa.',
       );
 
-      expect(
-        prisma.enrollment.update,
+      expect(prisma.enrollment.update).not.toHaveBeenCalled();
+});
+    it('should move enrollment to another class', async () => {
+      prisma.modality.findUnique.mockResolvedValue(mockModality);
+
+      const newClass = {
+        ...mockClass,
+        id: 'class-2',
+      };
+
+      prisma.class.findUnique.mockResolvedValue(newClass);
+      prisma.enrollment.count.mockResolvedValue(0);
+
+      const updatedEnrollment = {
+        ...mockEnrollment,
+        classId: 'class-2',
+      };
+
+      prisma.enrollment.update.mockResolvedValue(
+        updatedEnrollment,
+      );
+
+      const result = await service.update(
+        'enrollment-1',
+        {
+          classId: 'class-2',
+        },
+      );
+
+      expect(result).toEqual(updatedEnrollment);
+
+      expect(prisma.class.findUnique).toHaveBeenCalledWith({
+        where: {
+          id: 'class-2',
+        },
+      });
+
+      expect(prisma.enrollment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            classId: 'class-2',
+          }),
+        }),
+      );
+    });
+      it('should throw ConflictException when moving enrollment to a full class', async () => {
+      prisma.modality.findUnique.mockResolvedValue(mockModality);
+
+      prisma.class.findUnique.mockResolvedValue({
+        ...mockClass,
+        id: 'class-2',
+        capacity: 1,
+      });
+
+      prisma.enrollment.count.mockResolvedValue(1);
+
+      await expect(
+        service.update('enrollment-1', {
+          classId: 'class-2',
+        }),
+      ).rejects.toThrow(
+        'A turma selecionada está lotada.',
+      );
+
+      expect(prisma.enrollment.update).not.toHaveBeenCalled();
+    });
+          it('should remove class when changing to another modality', async () => {
+          const newModality = {
+            id: 'modality-2',
+            name: 'Musculação',
+            active: true,
+            requiresClass: false,
+            monthlyPrice: new Decimal('300'),
+          };
+
+          prisma.modality.findUnique.mockResolvedValue(
+            newModality,
+          );
+
+          prisma.enrollment.findFirst.mockResolvedValue(
+            null,
+          );
+
+          prisma.enrollment.update.mockResolvedValue({
+            ...mockEnrollment,
+            modalityId: 'modality-2',
+            classId: null,
+          });
+
+          await service.update('enrollment-1', {
+            modalityId: 'modality-2',
+          });
+
+          expect(
+            prisma.enrollment.update,
+          ).toHaveBeenCalledWith(
+            expect.objectContaining({
+              data: expect.objectContaining({
+                modalityId: 'modality-2',
+                classId: null,
+                }),
+                }),
+              );
+            });
+            it('should reject changing to a modality that requires a class without selecting one', async () => {
+          const newModality = {
+            id: 'modality-2',
+            name: 'Natação Adulto',
+            active: true,
+            requiresClass: true,
+            monthlyPrice: new Decimal('300'),
+          };
+
+          prisma.modality.findUnique.mockResolvedValue(
+            newModality,
+          );
+
+          prisma.enrollment.findFirst.mockResolvedValue(
+            null,
+          );
+
+          await expect(
+            service.update('enrollment-1', {
+              modalityId: 'modality-2',
+            }),
+          ).rejects.toThrow(
+            'Esta modalidade exige a seleção de uma turma.',
+          );
+
+   expect(
+         prisma.enrollment.update,
       ).not.toHaveBeenCalled();
     });
   });

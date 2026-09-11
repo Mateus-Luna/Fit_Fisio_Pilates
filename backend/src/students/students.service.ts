@@ -89,7 +89,9 @@ export class StudentsService {
       createStudentDto.rg,
     );
 
-    await this.validateFamily(createStudentDto.familyId);
+    await this.validateFamily(
+      createStudentDto.familyId ?? undefined,
+    );
 
     return this.prisma.student.create({
       data: {
@@ -187,7 +189,7 @@ export class StudentsService {
 
     if (updateStudentDto.familyId !== undefined) {
       await this.validateFamily(
-        updateStudentDto.familyId,
+        updateStudentDto.familyId ?? undefined,
       );
     }
 

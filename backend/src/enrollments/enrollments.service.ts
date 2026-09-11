@@ -96,30 +96,10 @@ export class EnrollmentsService {
       );
     }
 
-    if (classId) {
-      const classEntity =
-        await this.prisma.class.findUnique({
-          where: { id: classId },
-        });
-
-      if (!classEntity) {
-        throw new NotFoundException(
-          'Turma não encontrada.',
-        );
-      }
-
-      if (classEntity.modalityId !== modalityId) {
-        throw new BadRequestException(
-          'A turma selecionada não pertence à modalidade da matrícula.',
-        );
-      }
-
-      if (!classEntity.active) {
-        throw new BadRequestException(
-          'Não é possível matricular o aluno em uma turma inativa.',
-        );
-      }
-    }
+    await this.validateClassForEnrollment(
+        classId,
+        modalityId,
+      );
 
     const contractedPrice = new Decimal(
   modality.monthlyPrice.toString(),
@@ -212,242 +192,265 @@ const discountCalculation  =
   }
 
   async update(
-    id: string,
-    updateEnrollmentDto: UpdateEnrollmentDto,
-  ) {
-    const enrollment =
-      await this.prisma.enrollment.findUnique({
-        where: { id },
-      });
-
-    if (!enrollment) {
-      throw new NotFoundException(
-        'Matrícula não encontrada.',
-      );
-    }
-
-    if (
-      enrollment.status === EnrollmentStatus.CANCELLED ||
-      enrollment.status === EnrollmentStatus.COMPLETED
+      id: string,
+      updateEnrollmentDto: UpdateEnrollmentDto,
     ) {
-      throw new BadRequestException(
-        'Não é possível editar uma matrícula cancelada ou concluída.',
-      );
-    }
-
-    const {
-      modalityId,
-      startDate,
-      endDate,
-      discountPercentage,
-      observation,
-      classId,
-    } = updateEnrollmentDto;
-
-    let contractedPrice = new Decimal(
-  enrollment.contractedPrice.toString(),
-);
-
-    let newDiscountPercentage = new Decimal(
-      enrollment.discountPercentage.toString(),
-    );
-
-    let discountAmount = new Decimal(
-      enrollment.discountAmount.toString(),
-    );
-
-    let finalPrice = new Decimal(
-      enrollment.finalPrice.toString(),
-    );
-
-    if (
-      modalityId &&
-      modalityId !== enrollment.modalityId
-    ) {
-      const modality =
-        await this.prisma.modality.findUnique({
-          where: { id: modalityId },
+      const enrollment =
+        await this.prisma.enrollment.findUnique({
+          where: { id },
         });
 
-      if (!modality) {
+      if (!enrollment) {
         throw new NotFoundException(
-          'Modalidade não encontrada.',
+          'Matrícula não encontrada.',
         );
       }
 
-      if (!modality.active) {
+      if (
+        enrollment.status === EnrollmentStatus.CANCELLED ||
+        enrollment.status === EnrollmentStatus.COMPLETED
+      ) {
         throw new BadRequestException(
-          'Não é possível utilizar uma modalidade inativa.',
+          'Não é possível editar uma matrícula cancelada ou concluída.',
         );
       }
 
-      const existingEnrollment =
-        await this.prisma.enrollment.findFirst({
-          where: {
-            studentId: enrollment.studentId,
-            modalityId,
-            id: {
-              not: id,
-            },
-            status: {
-              in: [
-                EnrollmentStatus.PENDING_DOCUMENTATION,
-                EnrollmentStatus.AWAITING_APPROVAL,
-                EnrollmentStatus.ACTIVE,
-                EnrollmentStatus.SUSPENDED,
-              ],
-            },
-          },
-        });
-
-      if (existingEnrollment) {
-        throw new ConflictException(
-          'O aluno já possui uma matrícula nessa modalidade.',
-        );
-      }
-
-      contractedPrice = new Decimal(
-        modality.monthlyPrice.toString(),
-      );
-    }
-
-    if (
-      discountPercentage !== undefined &&
-      (discountPercentage < 0 ||
-        discountPercentage > 100)
-    ) {
-      throw new BadRequestException(
-        'O desconto deve estar entre 0% e 100%.',
-      );
-    }
-
-    if (discountPercentage !== undefined) {
-      newDiscountPercentage = new Decimal(
+      const {
+        modalityId,
+        startDate,
+        endDate,
         discountPercentage,
-      );
-    }
+        observation,
+        classId,
+      } = updateEnrollmentDto;
 
-    if (
-  modalityId ||
-  discountPercentage !== undefined
-) {
-  const discountCalculation =
-    this.discountsService.calculate(
-      Number(contractedPrice.toString()),
-      Number(newDiscountPercentage.toString()),
-    );
-
-      discountAmount = new Decimal(
-        discountCalculation.discountAmount,
+      let contractedPrice = new Decimal(
+        enrollment.contractedPrice.toString(),
       );
 
-      finalPrice = new Decimal(
-        discountCalculation.finalPrice,
+      let newDiscountPercentage = new Decimal(
+        enrollment.discountPercentage.toString(),
       );
 
-      newDiscountPercentage = new Decimal(
-        discountCalculation.discountPercentage,
+      let discountAmount = new Decimal(
+        enrollment.discountAmount.toString(),
       );
 
-      contractedPrice = new Decimal(
-        discountCalculation.contractedPrice,
+      let finalPrice = new Decimal(
+        enrollment.finalPrice.toString(),
       );
-    }
 
-    const effectiveStartDate = startDate
-      ? new Date(startDate)
-      : enrollment.startDate;
+      /*
+      * Validação da nova modalidade
+      */
+      if (
+        modalityId &&
+        modalityId !== enrollment.modalityId
+      ) {
+        const modality =
+          await this.prisma.modality.findUnique({
+            where: { id: modalityId },
+          });
 
-    const effectiveEndDate =
-      endDate !== undefined
-        ? endDate
-          ? new Date(endDate)
-          : null
-        : enrollment.endDate;
+        if (!modality) {
+          throw new NotFoundException(
+            'Modalidade não encontrada.',
+          );
+        }
 
-    if (
-      effectiveEndDate &&
-      effectiveEndDate < effectiveStartDate
-    ) {
-      throw new BadRequestException(
-        'A data de término não pode ser anterior à data de início.',
-      );
-    }
+        if (!modality.active) {
+          throw new BadRequestException(
+            'Não é possível utilizar uma modalidade inativa.',
+          );
+        }
 
-    if (
-      classId !== undefined &&
-      classId !== null
-    ) {
-      const classEntity =
-        await this.prisma.class.findUnique({
-          where: { id: classId },
-        });
+        const existingEnrollment =
+          await this.prisma.enrollment.findFirst({
+            where: {
+              studentId: enrollment.studentId,
+              modalityId,
+              id: {
+                not: id,
+              },
+              status: {
+                in: [
+                  EnrollmentStatus.PENDING_DOCUMENTATION,
+                  EnrollmentStatus.AWAITING_APPROVAL,
+                  EnrollmentStatus.ACTIVE,
+                  EnrollmentStatus.SUSPENDED,
+                ],
+              },
+            },
+          });
 
-      if (!classEntity) {
-        throw new NotFoundException(
-          'Turma não encontrada.',
+        if (existingEnrollment) {
+          throw new ConflictException(
+            'O aluno já possui uma matrícula nessa modalidade.',
+          );
+        }
+
+        contractedPrice = new Decimal(
+          modality.monthlyPrice.toString(),
         );
       }
 
+      /*
+      * Validação do desconto
+      */
+      if (
+        discountPercentage !== undefined &&
+        (discountPercentage < 0 ||
+          discountPercentage > 100)
+      ) {
+        throw new BadRequestException(
+          'O desconto deve estar entre 0% e 100%.',
+        );
+      }
+
+      if (discountPercentage !== undefined) {
+        newDiscountPercentage = new Decimal(
+          discountPercentage,
+        );
+      }
+
+      /*
+      * Recalcula os valores financeiros quando
+      * modalidade ou desconto forem alterados.
+      */
+      if (
+        modalityId ||
+        discountPercentage !== undefined
+      ) {
+        const discountCalculation =
+          this.discountsService.calculate(
+            Number(contractedPrice.toString()),
+            Number(newDiscountPercentage.toString()),
+          );
+
+        discountAmount = new Decimal(
+          discountCalculation.discountAmount,
+        );
+
+        finalPrice = new Decimal(
+          discountCalculation.finalPrice,
+        );
+
+        newDiscountPercentage = new Decimal(
+          discountCalculation.discountPercentage,
+        );
+
+        contractedPrice = new Decimal(
+          discountCalculation.contractedPrice,
+        );
+      }
+
+      /*
+      * Validação das datas
+      */
+      const effectiveStartDate = startDate
+        ? new Date(startDate)
+        : enrollment.startDate;
+
+      const effectiveEndDate =
+        endDate !== undefined
+          ? endDate
+            ? new Date(endDate)
+            : null
+          : enrollment.endDate;
+
+      if (
+        effectiveEndDate &&
+        effectiveEndDate < effectiveStartDate
+      ) {
+        throw new BadRequestException(
+          'A data de término não pode ser anterior à data de início.',
+        );
+      }
+
+      /*
+      * Define a modalidade efetiva da matrícula.
+      */
       const effectiveModalityId =
         modalityId ?? enrollment.modalityId;
 
-      if (
-        classEntity.modalityId !==
-        effectiveModalityId
-      ) {
-        throw new BadRequestException(
-          'A turma selecionada não pertence à modalidade da matrícula.',
-        );
-      }
+      /*
+      * Define a turma efetiva.
+      *
+      * - classId enviado como string -> usa a nova turma
+      * - classId enviado como null -> remove a turma
+      * - classId não enviado -> mantém a turma atual
+      * - se a modalidade mudou e nenhuma turma foi enviada,
+      *   remove a turma anterior
+      */
+      const effectiveClassId =
+        classId !== undefined
+          ? classId
+          : modalityId &&
+              modalityId !== enrollment.modalityId
+            ? null
+            : enrollment.classId;
 
-      if (!classEntity.active) {
-        throw new BadRequestException(
-          'Não é possível utilizar uma turma inativa.',
-        );
-      }
-    }
+      /*
+      * Valida:
+      * - se a modalidade exige turma
+      * - existência da turma
+      * - modalidade da turma
+      * - turma ativa
+      * - capacidade da turma
+      */
+      await this.validateClassForEnrollment(
+        effectiveClassId,
+        effectiveModalityId,
+        id,
+      );
 
-    return this.prisma.enrollment.update({
-      where: { id },
+      /*
+      * Atualiza a matrícula.
+      */
+      return this.prisma.enrollment.update({
+        where: { id },
 
-      data: {
-        modalityId,
+        data: {
+          modalityId:
+            modalityId !== undefined
+              ? modalityId
+              : undefined,
 
-        startDate: startDate
-          ? new Date(startDate)
-          : undefined,
-
-        endDate:
-          endDate !== undefined
-            ? endDate
-              ? new Date(endDate)
-              : null
+          startDate: startDate
+            ? new Date(startDate)
             : undefined,
 
-        contractedPrice:
-          contractedPrice.toString(),
+          endDate:
+            endDate !== undefined
+              ? endDate
+                ? new Date(endDate)
+                : null
+              : undefined,
 
-        discountPercentage:
-          newDiscountPercentage.toString(),
+          contractedPrice:
+            contractedPrice.toString(),
 
-        discountAmount:
-          discountAmount.toString(),
+          discountPercentage:
+            newDiscountPercentage.toString(),
 
-        finalPrice:
-          finalPrice.toString(),
+          discountAmount:
+            discountAmount.toString(),
 
-        observation,
-        classId,
-      },
+          finalPrice:
+            finalPrice.toString(),
 
-      include: {
-        student: true,
-        modality: true,
-        class: true,
-      },
-    });
-  }
+          observation,
+
+          classId: effectiveClassId,
+        },
+
+        include: {
+          student: true,
+          modality: true,
+          class: true,
+        },
+      });
+    }
 
   async requestApproval(id: string) {
     const enrollment = await this.findOne(id);
@@ -593,4 +596,84 @@ const discountCalculation  =
   async remove(id: string) {
     return this.cancel(id);
   }
+
+  private async validateClassForEnrollment(
+  classId: string | null | undefined,
+  modalityId: string,
+  enrollmentIdToIgnore?: string,
+) {
+  const modality = await this.prisma.modality.findUnique({
+    where: { id: modalityId },
+  });
+
+  if (!modality) {
+    throw new NotFoundException(
+      'Modalidade não encontrada.',
+    );
+  }
+
+  if (modality.requiresClass && !classId) {
+    throw new BadRequestException(
+      'Esta modalidade exige a seleção de uma turma.',
+    );
+  }
+
+  if (!classId) {
+    return;
+  }
+
+  const classEntity =
+    await this.prisma.class.findUnique({
+      where: { id: classId },
+    });
+
+  if (!classEntity) {
+    throw new NotFoundException(
+      'Turma não encontrada.',
+    );
+  }
+
+  if (classEntity.modalityId !== modalityId) {
+    throw new BadRequestException(
+      'A turma selecionada não pertence à modalidade da matrícula.',
+    );
+  }
+
+  if (!classEntity.active) {
+    throw new BadRequestException(
+      'Não é possível matricular o aluno em uma turma inativa.',
+    );
+  }
+
+  const enrolledCount =
+    await this.prisma.enrollment.count({
+      where: {
+        classId,
+        status: {
+          in: [
+            EnrollmentStatus.PENDING_DOCUMENTATION,
+            EnrollmentStatus.AWAITING_APPROVAL,
+            EnrollmentStatus.ACTIVE,
+            EnrollmentStatus.SUSPENDED,
+          ],
+        },
+        ...(enrollmentIdToIgnore
+          ? {
+              id: {
+                not: enrollmentIdToIgnore,
+              },
+            }
+          : {}),
+      },
+    });
+
+  if (
+    classEntity.capacity !== null &&
+    enrolledCount >= classEntity.capacity
+  ) {
+    throw new ConflictException(
+      'A turma selecionada está lotada.',
+    );
+  }
+}
 }
