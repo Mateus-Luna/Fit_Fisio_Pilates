@@ -220,7 +220,7 @@ export default function StudentsPage() {
         modalityId: nextAvailable ? nextAvailable.id : '',
         classId: '',
         startDate: new Date().toISOString().split('T')[0],
-        discountPercentage: familyId ? 10 : 0,
+        discountPercentage: 0,
       },
     ]);
   };
