@@ -299,6 +299,9 @@ function loadDb() {
       if (!data.documents || !Array.isArray(data.documents)) {
         data.documents = [];
       }
+      if (!data.serviceReceipts || !Array.isArray(data.serviceReceipts)) {
+        data.serviceReceipts = [];
+      }
       return data;
     }
   } catch (err) {
@@ -874,12 +877,14 @@ function enrichEnrollment(e) {
   const modality = (db.modalities || []).find((m) => m.id === e.modalityId) || null;
   const classItem = e.classId ? (db.classes || []).find((c) => c.id === e.classId) || null : null;
   const documents = (db.documents || []).filter((d) => d.enrollmentId === e.id || (d.studentId === e.studentId && !d.enrollmentId));
+  const serviceReceipt = (db.serviceReceipts || []).find((r) => r.enrollmentId === e.id) || null;
   return {
     ...e,
     student,
     modality,
     class: classItem,
     documents,
+    serviceReceipt,
   };
 }
 
@@ -939,10 +944,10 @@ app.post(['/enrollments', '/api/enrollments'], (req, res) => {
     studentId,
     modalityId,
     classId: classId || null,
-    status: 'PENDING_DOCUMENTATION',
+    status: 'ACTIVE',
     startDate: new Date(startDate || Date.now()).toISOString(),
     endDate: endDate ? new Date(endDate).toISOString() : null,
-    approvedAt: null,
+    approvedAt: new Date().toISOString(),
     contractedPrice,
     discountPercentage: pct,
     discountAmount,
@@ -953,6 +958,21 @@ app.post(['/enrollments', '/api/enrollments'], (req, res) => {
   };
 
   db.enrollments.push(newEnrollment);
+
+  // Inicializar ServiceReceipt formal (Contrato / Recibo) para assinatura física
+  if (!db.serviceReceipts) db.serviceReceipts = [];
+  const initialReceipt = {
+    id: generateId('rcp'),
+    enrollmentId: newEnrollment.id,
+    documentPath: `uploads/documents/receipts/recibo-servico-${newEnrollment.id}.pdf`,
+    status: 'PENDING',
+    filledAt: new Date().toISOString(),
+    approvedAt: null,
+    observation: observation || null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  db.serviceReceipts.push(initialReceipt);
 
   // Gerar recibo de prestação de serviços inicial para esta matrícula
   if (!db.documents) db.documents = [];
@@ -1028,12 +1048,8 @@ app.patch(['/enrollments/:id/approve', '/api/enrollments/:id/approve'], (req, re
   const enrollment = (db.enrollments || []).find((e) => e.id === req.params.id);
   if (!enrollment) return res.status(404).json({ message: 'Matrícula não encontrada.' });
 
-  if (enrollment.status !== 'AWAITING_APPROVAL') {
-    return res.status(400).json({ message: 'A matrícula precisa estar aguardando aprovação para ser homologada.' });
-  }
-
   enrollment.status = 'ACTIVE';
-  enrollment.approvedAt = new Date().toISOString();
+  enrollment.approvedAt = enrollment.approvedAt || new Date().toISOString();
   enrollment.updatedAt = new Date().toISOString();
   saveDb(db);
   res.json(enrichEnrollment(enrollment));
@@ -1094,6 +1110,354 @@ app.delete(['/enrollments/:id', '/api/enrollments/:id'], (req, res) => {
 });
 
 // -------------------------------------------------------------
+// ENROLLMENT SERVICE RECEIPT (RECIBO SERVICO.pdf)
+// -------------------------------------------------------------
+const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
+
+function mapModalityToDocumentName(originalModalityName) {
+  if (!originalModalityName) return 'Pilates';
+  const normalized = originalModalityName.trim().toLowerCase();
+  if (normalized === 'academia') return 'Pilates';
+  if (normalized === 'fisioterapia') return 'Fisioterapia';
+  if (normalized === 'hidroginástica' || normalized === 'hidroginastica') return 'Hidroginástica';
+  if (normalized === 'hidroterapia') return 'Hidroginástica';
+  if (normalized.includes('natação') || normalized.includes('natacao')) return 'Natação';
+  if (normalized === 'pilates') return 'Pilates';
+  return originalModalityName;
+}
+
+function getTableRowYCoordinate(documentServiceName) {
+  switch (documentServiceName) {
+    case 'Pilates': return 497.5;
+    case 'Fisioterapia': return 478.5;
+    case 'Natação': return 459.5;
+    case 'Hidroginástica': return 440.5;
+    default: return 497.5;
+  }
+}
+
+function resolveServiceReceiptTemplatePath() {
+  const candidates = [
+    path.join(__dirname, 'backend/assets/documents/RECIBO SERVICO.pdf'),
+    path.join(__dirname, 'assets/documents/RECIBO SERVICO.pdf'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  throw new Error('Template original RECIBO SERVICO.pdf não encontrado.');
+}
+
+function resolveServiceReceiptUploadDir() {
+  const uploadDir = path.join(__dirname, 'backend/uploads/documents/receipts');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+  return uploadDir;
+}
+
+function resolveClientDataForReceipt(student) {
+  if (!student) return { name: 'Aluno', cpf: '-', phone: '-', address: '-' };
+  const isAdult = student.type === 'ADULT';
+  if (isAdult) {
+    return {
+      name: student.name || 'Aluno',
+      cpf: student.cpf || '-',
+      phone: student.phone || '-',
+      address: student.address || '-',
+    };
+  }
+  // Aluno criança: procurar adulto responsável na mesma família
+  if (student.familyId) {
+    const familyMembers = (db.students || []).filter((s) => s.familyId === student.familyId);
+    const adultResponsible = familyMembers.find((m) => m.type === 'ADULT' && m.id !== student.id);
+    if (adultResponsible) {
+      return {
+        name: `${adultResponsible.name} (Resp. p/ ${student.name})`,
+        cpf: adultResponsible.cpf || '-',
+        phone: adultResponsible.phone || student.phone || '-',
+        address: adultResponsible.address || student.address || '-',
+      };
+    }
+  }
+  return {
+    name: `${student.name} (Menor de idade)`,
+    cpf: '-',
+    phone: student.phone || '-',
+    address: student.address || '-',
+  };
+}
+
+async function generateEnrollmentReceiptPdf(enrollmentId, options = {}) {
+  const enrollment = (db.enrollments || []).find((e) => e.id === enrollmentId);
+  if (!enrollment) throw new Error('Matrícula não encontrada.');
+
+  const student = (db.students || []).find((s) => s.id === enrollment.studentId);
+  const modality = (db.modalities || []).find((m) => m.id === enrollment.modalityId);
+  const classItem = enrollment.classId ? (db.classes || []).find((c) => c.id === enrollment.classId) : null;
+
+  const templatePath = resolveServiceReceiptTemplatePath();
+  const templateBytes = fs.readFileSync(templatePath);
+
+  const pdfDoc = await PDFDocument.load(templateBytes);
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const page = pdfDoc.getPage(0);
+  const textColor = rgb(0.1, 0.1, 0.1);
+
+  // Prestador
+  const today = new Date();
+  const dateStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+  page.drawText('34.567.890/0001-12', { x: 412, y: 662, size: 9, font: boldFont, color: textColor });
+  page.drawText('Rua Desembargador Trindade, 120 - Centro', { x: 135, y: 638, size: 8.5, font: regularFont, color: textColor });
+  page.drawText('(83) 98765-4321', { x: 420, y: 638, size: 9, font: regularFont, color: textColor });
+  page.drawText('Campina Grande - PB', { x: 155, y: 620, size: 8.5, font: regularFont, color: textColor });
+  page.drawText(dateStr, { x: 408, y: 620, size: 9, font: boldFont, color: textColor });
+
+  // Cliente
+  const clientData = resolveClientDataForReceipt(student);
+  page.drawText(clientData.name, { x: 175, y: 584, size: 9, font: boldFont, color: textColor });
+  page.drawText(clientData.cpf, { x: 138, y: 566, size: 9, font: regularFont, color: textColor });
+  page.drawText(clientData.phone, { x: 330, y: 566, size: 9, font: regularFont, color: textColor });
+  page.drawText(clientData.address, { x: 135, y: 551, size: 8.5, font: regularFont, color: textColor });
+
+  // Serviços
+  const originalModalityName = modality?.name || 'Pilates';
+  const documentServiceName = mapModalityToDocumentName(originalModalityName);
+  const rowY = getTableRowYCoordinate(documentServiceName);
+
+  const startD = new Date(enrollment.startDate || Date.now());
+  const startStr = `${String(startD.getDate()).padStart(2, '0')}/${String(startD.getMonth() + 1).padStart(2, '0')}/${startD.getFullYear()}`;
+  const classInfo = classItem?.name ? ` • Turma: ${classItem.name}` : '';
+  const desc = `Início: ${startStr}${classInfo}`;
+
+  page.drawText(desc, { x: 175, y: rowY, size: 8.5, font: regularFont, color: textColor });
+  const formattedPrice = `R$ ${Number(enrollment.finalPrice || 0).toFixed(2).replace('.', ',')}`;
+  page.drawText(formattedPrice, { x: 438, y: rowY, size: 9, font: boldFont, color: textColor });
+
+  // Forma de pagamento
+  const method = (options.paymentMethod || 'PIX').toUpperCase();
+  const checkboxMap = { PIX: 188.5, DINHEIRO: 212.5, CARTAO: 252.0, TRANSFERENCIA: 286.5, OUTRO: 345.0 };
+  const checkX = checkboxMap[method] || 188.5;
+  page.drawText('X', { x: checkX, y: 373.5, size: 8.5, font: boldFont, color: textColor });
+
+  // Total
+  page.drawText(formattedPrice, { x: 445, y: 373.5, size: 9.5, font: boldFont, color: textColor });
+
+  // Observações
+  const obs = options.observation || enrollment.observation || (enrollment.discountPercentage > 0 ? `Desconto aplicado: ${Number(enrollment.discountPercentage).toFixed(0)}% sobre o valor da mensalidade.` : '');
+  if (obs) {
+    const words = obs.split(' ');
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      if ((cur + ' ' + w).trim().length <= 80) cur = (cur + ' ' + w).trim();
+      else { if (cur) lines.push(cur); cur = w; }
+    }
+    if (cur) lines.push(cur);
+    let obsY = 325;
+    for (const line of lines.slice(0, 4)) {
+      page.drawText(line, { x: 88, y: obsY, size: 8, font: regularFont, color: textColor });
+      obsY -= 15;
+    }
+  }
+
+  const uploadDir = resolveServiceReceiptUploadDir();
+  const fileName = `recibo-servico-${enrollment.id}.pdf`;
+  const filePath = path.join(uploadDir, fileName);
+  const pdfBytes = await pdfDoc.save();
+  fs.writeFileSync(filePath, pdfBytes);
+
+  const relativePath = path.join('uploads/documents/receipts', fileName);
+
+  if (!db.serviceReceipts) db.serviceReceipts = [];
+  let receipt = db.serviceReceipts.find((r) => r.enrollmentId === enrollment.id);
+  if (receipt) {
+    receipt.documentPath = relativePath;
+    receipt.filledAt = new Date().toISOString();
+    receipt.observation = obs || null;
+    receipt.updatedAt = new Date().toISOString();
+  } else {
+    receipt = {
+      id: generateId('rcp'),
+      enrollmentId: enrollment.id,
+      documentPath: relativePath,
+      status: 'PENDING',
+      filledAt: new Date().toISOString(),
+      approvedAt: null,
+      observation: obs || null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    db.serviceReceipts.push(receipt);
+  }
+  saveDb(db);
+
+  return {
+    receipt,
+    filePath,
+    relativePath,
+    fileName,
+    clientData,
+    documentServiceName,
+    finalPrice: enrollment.finalPrice,
+  };
+}
+
+// Endpoints do documento da matrícula
+app.post(['/enrollments/:id/document/generate', '/api/enrollments/:id/document/generate'], async (req, res) => {
+  try {
+    const result = await generateEnrollmentReceiptPdf(req.params.id, req.body || {});
+    res.json(result);
+  } catch (err) {
+    console.error('Erro ao gerar recibo da matrícula:', err);
+    res.status(500).json({ message: err.message || 'Erro ao gerar documento.' });
+  }
+});
+
+app.get(['/enrollments/:id/document', '/api/enrollments/:id/document'], async (req, res) => {
+  const enrollment = (db.enrollments || []).find((e) => e.id === req.params.id);
+  if (!enrollment) return res.status(404).json({ message: 'Matrícula não encontrada.' });
+
+  let receipt = (db.serviceReceipts || []).find((r) => r.enrollmentId === req.params.id);
+  const fileName = `recibo-servico-${enrollment.id}.pdf`;
+  const uploadDir = resolveServiceReceiptUploadDir();
+  const filePath = path.join(uploadDir, fileName);
+
+  if (!receipt || !fs.existsSync(filePath)) {
+    try {
+      const generated = await generateEnrollmentReceiptPdf(enrollment.id);
+      receipt = generated.receipt;
+    } catch (err) {
+      console.error('Erro na auto-geração do documento:', err);
+    }
+  }
+
+  res.json({
+    receipt,
+    filePath,
+    fileName,
+    documentServiceName: mapModalityToDocumentName((db.modalities || []).find((m) => m.id === enrollment.modalityId)?.name || ''),
+    finalPrice: enrollment.finalPrice,
+  });
+});
+
+app.get(['/enrollments/:id/document/pdf', '/api/enrollments/:id/document/pdf'], async (req, res) => {
+  const enrollment = (db.enrollments || []).find((e) => e.id === req.params.id);
+  if (!enrollment) return res.status(404).json({ message: 'Matrícula não encontrada.' });
+
+  const fileName = `recibo-servico-${enrollment.id}.pdf`;
+  const uploadDir = resolveServiceReceiptUploadDir();
+  const filePath = path.join(uploadDir, fileName);
+
+  if (!fs.existsSync(filePath)) {
+    try {
+      await generateEnrollmentReceiptPdf(enrollment.id);
+    } catch (err) {
+      console.error('Erro ao gerar documento para download:', err);
+      return res.status(500).json({ message: 'Não foi possível gerar o PDF do documento.' });
+    }
+  }
+
+  const stat = fs.statSync(filePath);
+  res.writeHead(200, {
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `inline; filename="${fileName}"`,
+    'Content-Length': stat.size,
+  });
+  fs.createReadStream(filePath).pipe(res);
+});
+
+app.patch(['/enrollments/:id/document/status', '/api/enrollments/:id/document/status'], (req, res) => {
+  const enrollment = (db.enrollments || []).find((e) => e.id === req.params.id);
+  if (!enrollment) return res.status(404).json({ message: 'Matrícula não encontrada.' });
+
+  let receipt = (db.serviceReceipts || []).find((r) => r.enrollmentId === req.params.id);
+  if (!receipt) {
+    receipt = {
+      id: generateId('rcp'),
+      enrollmentId: enrollment.id,
+      documentPath: `uploads/documents/receipts/recibo-servico-${enrollment.id}.pdf`,
+      status: 'PENDING',
+      filledAt: new Date().toISOString(),
+      approvedAt: null,
+      observation: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    if (!db.serviceReceipts) db.serviceReceipts = [];
+    db.serviceReceipts.push(receipt);
+  }
+
+  const { status, observation, signed } = req.body || {};
+  const isMarkingSigned = status === 'APPROVED' || status === 'SIGNED' || signed === true;
+  const isMarkingPending = status === 'PENDING' || signed === false;
+
+  if (isMarkingSigned) {
+    receipt.status = 'APPROVED';
+    receipt.approvedAt = new Date().toISOString();
+    // Se a matrícula estava aguardando ou pendente de documentação, ativa formalmente
+    if (enrollment.status === 'PENDING_DOCUMENTATION' || enrollment.status === 'AWAITING_APPROVAL') {
+      enrollment.status = 'ACTIVE';
+      enrollment.approvedAt = enrollment.approvedAt || new Date().toISOString();
+      enrollment.updatedAt = new Date().toISOString();
+    }
+  } else if (isMarkingPending) {
+    receipt.status = 'PENDING';
+    receipt.approvedAt = null;
+  } else if (status) {
+    receipt.status = status;
+  }
+
+  if (observation !== undefined) {
+    receipt.observation = observation;
+  }
+  receipt.updatedAt = new Date().toISOString();
+  saveDb(db);
+
+  res.json(receipt);
+});
+
+app.patch(['/enrollments/:id/sign-document', '/api/enrollments/:id/sign-document'], (req, res) => {
+  const enrollment = (db.enrollments || []).find((e) => e.id === req.params.id);
+  if (!enrollment) return res.status(404).json({ message: 'Matrícula não encontrada.' });
+
+  let receipt = (db.serviceReceipts || []).find((r) => r.enrollmentId === req.params.id);
+  if (!receipt) {
+    receipt = {
+      id: generateId('rcp'),
+      enrollmentId: enrollment.id,
+      documentPath: `uploads/documents/receipts/recibo-servico-${enrollment.id}.pdf`,
+      status: 'PENDING',
+      filledAt: new Date().toISOString(),
+      approvedAt: null,
+      observation: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    if (!db.serviceReceipts) db.serviceReceipts = [];
+    db.serviceReceipts.push(receipt);
+  }
+
+  const { signed = true } = req.body || {};
+  if (signed) {
+    receipt.status = 'APPROVED';
+    receipt.approvedAt = new Date().toISOString();
+    if (enrollment.status === 'PENDING_DOCUMENTATION' || enrollment.status === 'AWAITING_APPROVAL') {
+      enrollment.status = 'ACTIVE';
+      enrollment.approvedAt = enrollment.approvedAt || new Date().toISOString();
+      enrollment.updatedAt = new Date().toISOString();
+    }
+  } else {
+    receipt.status = 'PENDING';
+    receipt.approvedAt = null;
+  }
+
+  receipt.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json({ success: true, receipt, enrollment: enrichEnrollment(enrollment) });
+});
+
+// -------------------------------------------------------------
 // DOCUMENTS ROUTES (RECEIPTS & CERTIFICATES)
 // -------------------------------------------------------------
 function enrichDocument(doc) {
@@ -1117,6 +1481,23 @@ app.get(['/documents', '/api/documents'], (req, res) => {
   const enriched = list.map(enrichDocument);
   enriched.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   res.json(enriched);
+});
+
+// Endpoint do modelo PDF original em branco do recibo (para visualização e impressão física)
+app.get(['/documents/receipt-template', '/api/documents/receipt-template'], (req, res) => {
+  try {
+    const templatePath = resolveServiceReceiptTemplatePath();
+    const stat = fs.statSync(templatePath);
+    res.writeHead(200, {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'inline; filename="RECIBO SERVICO.pdf"',
+      'Content-Length': stat.size,
+    });
+    fs.createReadStream(templatePath).pipe(res);
+  } catch (err) {
+    console.error('Erro ao servir template original de recibo:', err);
+    res.status(404).json({ message: 'Arquivo original RECIBO SERVICO.pdf não encontrado.' });
+  }
 });
 
 app.get(['/documents/:id', '/api/documents/:id'], (req, res) => {

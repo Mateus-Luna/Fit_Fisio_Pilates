@@ -365,5 +365,18 @@
       "updatedAt": "2026-01-01T00:00:00.000Z"
     }
   ],
-  "documents": []
+  "documents": [],
+  "serviceReceipts": [
+    {
+      "id": "rcp-mu1qrlyq-778f2",
+      "enrollmentId": "enr-2",
+      "documentPath": "uploads/documents/receipts/recibo-servico-enr-2.pdf",
+      "status": "APPROVED",
+      "filledAt": "2026-09-14T21:15:04.562Z",
+      "approvedAt": "2026-09-14T21:15:15.759Z",
+      "observation": "Documento assinado e aprovado pela gerência.",
+      "createdAt": "2026-09-14T21:15:04.562Z",
+      "updatedAt": "2026-09-14T21:15:15.759Z"
+    }
+  ]
 }

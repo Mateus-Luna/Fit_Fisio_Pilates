@@ -345,3 +345,35 @@ export function Activity(props: IconProps) {
     </SvgBase>
   );
 }
+
+export function Download(props: IconProps) {
+  return (
+    <SvgBase {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+    </SvgBase>
+  );
+}
+
+export function Maximize2(props: IconProps) {
+  return (
+    <SvgBase {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h6m0 0v6m0-6L14 10M9 21H3m0 0v-6m0 6l7-7" />
+    </SvgBase>
+  );
+}
+
+export function Minimize2(props: IconProps) {
+  return (
+    <SvgBase {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 14h6m0 0v6m0-6L3 21m17-11h-6m0 0V4m0 6l7-7" />
+    </SvgBase>
+  );
+}
+
+export function ExternalLink(props: IconProps) {
+  return (
+    <SvgBase {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+    </SvgBase>
+  );
+}

@@ -10,12 +10,14 @@ import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
 import { Decimal } from 'decimal.js';
 import { DiscountsService } from '../discounts/discounts.service';
+import { EnrollmentDocumentService } from './enrollment-document.service';
 
 @Injectable()
 export class EnrollmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly discountsService: DiscountsService,
+    private readonly documentService: EnrollmentDocumentService,
   ) {}
 
   async create(createEnrollmentDto: CreateEnrollmentDto) {
@@ -111,14 +113,15 @@ const discountCalculation  =
     discountPercentage,
   );
 
-    return this.prisma.enrollment.create({
+    const createdEnrollment = await this.prisma.enrollment.create({
       data: {
         studentId,
         modalityId,
         startDate: parsedStartDate,
         endDate: parsedEndDate,
 
-        status: EnrollmentStatus.PENDING_DOCUMENTATION,
+        status: EnrollmentStatus.ACTIVE,
+        approvedAt: new Date(),
 
         contractedPrice:
           discountCalculation.contractedPrice.toString(),
@@ -140,8 +143,16 @@ const discountCalculation  =
         student: true,
         modality: true,
         class: true,
+        serviceReceipt: true,
       },
     });
+
+    try {
+      await this.documentService.generateReceipt(createdEnrollment.id);
+      return this.findOne(createdEnrollment.id);
+    } catch {
+      return createdEnrollment;
+    }
   }
 
   async findAll(
@@ -160,6 +171,7 @@ const discountCalculation  =
         student: true,
         modality: true,
         class: true,
+        serviceReceipt: true,
       },
 
       orderBy: {
@@ -179,6 +191,7 @@ const discountCalculation  =
           class: true,
           payments: true,
           attendances: true,
+          serviceReceipt: true,
         },
       });
 
@@ -483,13 +496,8 @@ const discountCalculation  =
   async approve(id: string) {
     const enrollment = await this.findOne(id);
 
-    if (
-      enrollment.status !==
-      EnrollmentStatus.AWAITING_APPROVAL
-    ) {
-      throw new BadRequestException(
-        'A matrícula precisa estar aguardando aprovação para ser homologada.',
-      );
+    if (enrollment.status === EnrollmentStatus.ACTIVE) {
+      return enrollment;
     }
 
     return this.prisma.enrollment.update({
@@ -497,7 +505,7 @@ const discountCalculation  =
 
       data: {
         status: EnrollmentStatus.ACTIVE,
-        approvedAt: new Date(),
+        approvedAt: enrollment.approvedAt ?? new Date(),
       },
 
       include: {

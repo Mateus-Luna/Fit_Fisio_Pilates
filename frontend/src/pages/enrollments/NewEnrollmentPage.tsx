@@ -13,6 +13,7 @@ import {
   Activity,
   AlertTriangle,
   User,
+  MapPin,
 } from '../../components/common/Icons';
 import { studentsService, type Student } from '../../services/students.service';
 import { modalitiesService, type Modality } from '../../services/modalities.service';
@@ -433,6 +434,12 @@ export function NewEnrollmentPage() {
                     <span>Telefone: {selectedStudentObj.phone}</span>
                     {selectedStudentObj.cpf && <span>CPF: {selectedStudentObj.cpf}</span>}
                     <span>Faixa: {selectedStudentObj.type === 'ADULT' ? 'Adulto' : 'Criança'}</span>
+                    {selectedStudentObj.address && (
+                      <span className="flex items-center text-teal-800">
+                        <MapPin className="w-3.5 h-3.5 mr-1 text-teal-600 shrink-0" />
+                        <span>Endereço: {selectedStudentObj.address}</span>
+                      </span>
+                    )}
                   </div>
 
                   {/* Modalidades que o aluno já cursa */}
@@ -568,6 +575,22 @@ export function NewEnrollmentPage() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center">
+                    <MapPin className="w-3.5 h-3.5 mr-1 text-teal-600" />
+                    <span>Endereço Residencial Completo</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Rua das Flores, 123, Bairro Centro, Campina Grande - PB"
+                    value={newStudentData.address}
+                    onChange={(e) =>
+                      setNewStudentData({ ...newStudentData, address: e.target.value })
+                    }
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-600 focus:bg-white"
+                  />
                 </div>
 
                 {newStudentData.type === 'ADULT' && (

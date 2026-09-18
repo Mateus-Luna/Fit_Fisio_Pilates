@@ -1,179 +1,213 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
 import {
   FileText,
-  Search,
-  User,
-  Plus,
+  Printer,
+  Download,
+  ExternalLink,
   RefreshCw,
-  Eye,
 } from '../../components/common/Icons';
-import { documentsService, type AppDocument } from '../../services/documents.service';
-import { DocumentEditor } from '../../components/documents/DocumentEditor';
 
 export function ReceiptsPage() {
-  const [receipts, setReceipts] = useState<AppDocument[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedReceipt, setSelectedReceipt] = useState<AppDocument | null>(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const blobUrlRef = useRef<string | null>(null);
 
-  const loadReceipts = async () => {
+  // Endpoint do template original em branco servido pelo backend
+  const pdfEndpoint = '/documents/receipt-template';
+  const fallbackStaticPdf = '/documents/RECIBO%20SERVICO.pdf';
+
+  const loadPdf = async () => {
     try {
       setLoading(true);
-      const docs = await documentsService.findAll({ type: 'RECEIPT' });
-      setReceipts(docs);
-      if (docs.length > 0 && !selectedReceipt) {
-        setSelectedReceipt(docs[0]);
+      setError(null);
+
+      // Tenta buscar o arquivo via endpoint oficial de documentos
+      const response = await fetch(pdfEndpoint);
+      if (!response.ok) {
+        // Fallback para arquivo estático
+        const fallbackRes = await fetch(fallbackStaticPdf);
+        if (!fallbackRes.ok) {
+          throw new Error('Não foi possível carregar o arquivo original RECIBO SERVICO.pdf');
+        }
+        const blob = await fallbackRes.blob();
+        const url = URL.createObjectURL(blob);
+        blobUrlRef.current = url;
+        setPdfBlobUrl(url);
+        return;
       }
-    } catch (err) {
-      console.error('Erro ao carregar recibos:', err);
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      blobUrlRef.current = url;
+      setPdfBlobUrl(url);
+    } catch (err: unknown) {
+      console.error('Erro ao carregar modelo original do PDF:', err);
+      setError('Não foi possível carregar o PDF original. Verifique a conexão com o servidor.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadReceipts();
+    loadPdf();
+
+    return () => {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+      }
+    };
   }, []);
 
-  const filteredReceipts = receipts.filter((r) => {
-    const studentName = r.student?.name?.toLowerCase() || '';
-    const title = r.title?.toLowerCase() || '';
-    const query = searchTerm.toLowerCase();
-    return studentName.includes(query) || title.includes(query);
-  });
+  const handlePrint = () => {
+    // Tenta disparar impressão nativa do iframe
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      try {
+        iframeRef.current.contentWindow.focus();
+        iframeRef.current.contentWindow.print();
+        return;
+      } catch (e) {
+        console.warn('Tentando fallback para impressão do PDF:', e);
+      }
+    }
 
-  const handleSaveReceiptContent = async (content: string) => {
-    if (!selectedReceipt) return;
-    await documentsService.update(selectedReceipt.id, { content });
-    setSelectedReceipt((prev) => (prev ? { ...prev, content } : null));
-    await loadReceipts();
+    // Fallback: abre nova janela/aba diretamente com o PDF para impressão do navegador
+    const targetUrl = pdfBlobUrl || pdfEndpoint;
+    const printWindow = window.open(targetUrl, '_blank');
+    if (printWindow) {
+      printWindow.onload = () => {
+        setTimeout(() => {
+          printWindow.print();
+        }, 300);
+      };
+    }
+  };
+
+  const handleDownload = () => {
+    const targetUrl = pdfBlobUrl || pdfEndpoint;
+    const a = document.createElement('a');
+    a.href = targetUrl;
+    a.download = 'RECIBO SERVICO.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleOpenInNewTab = () => {
+    const targetUrl = pdfBlobUrl || pdfEndpoint;
+    window.open(targetUrl, '_blank');
   };
 
   return (
     <div className="space-y-6" id="receipts-page">
       {/* Cabeçalho */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-slate-200">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center">
-            <FileText className="w-7 h-7 mr-2.5 text-teal-600" />
-            Recibos de Prestação de Serviço
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center">
+            <FileText className="w-7 h-7 mr-2.5 text-teal-600" aria-hidden="true" />
+            Recibos / Documento
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Gestão e emissão de recibos oficiais timbrados de mensalidades e serviços do centro.
+          <p className="text-sm text-slate-600 mt-1">
+            Modelo original em branco para visualização e impressão física (preenchimento manual).
           </p>
         </div>
-        <Link
-          to="/enrollments/new"
-          className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold shadow-sm transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Emitir Novo Recibo (Via Matrícula)</span>
-        </Link>
+
+        {/* Botões de Ação */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            id="btn-print-document"
+            onClick={handlePrint}
+            disabled={loading || !!error}
+            className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white text-sm font-semibold shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            aria-label="Imprimir documento original em branco"
+          >
+            <Printer className="w-4 h-4" aria-hidden="true" />
+            <span>Imprimir documento</span>
+          </button>
+
+          <button
+            type="button"
+            id="btn-download-pdf"
+            onClick={handleDownload}
+            disabled={loading || !!error}
+            className="inline-flex items-center space-x-2 px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 text-sm font-medium border border-slate-300 shadow-2xs transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            aria-label="Baixar arquivo PDF original"
+          >
+            <Download className="w-4 h-4 text-slate-600" aria-hidden="true" />
+            <span>Baixar PDF</span>
+          </button>
+
+          <button
+            type="button"
+            id="btn-open-new-tab"
+            onClick={handleOpenInNewTab}
+            disabled={loading || !!error}
+            className="p-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-300 shadow-2xs transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300"
+            title="Abrir PDF em nova aba"
+            aria-label="Abrir PDF original em nova aba"
+          >
+            <ExternalLink className="w-4 h-4" aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Coluna Esquerda: Lista de Recibos */}
-        <div className="lg:col-span-5 bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Buscar aluno ou recibo..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
-            />
+      {/* Área de Visualização do PDF Original */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-24 px-4 text-center">
+            <RefreshCw className="w-8 h-8 text-teal-600 animate-spin mb-3" aria-hidden="true" />
+            <p className="text-sm font-semibold text-slate-800">Carregando documento original...</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Preparando visualização do arquivo RECIBO SERVICO.pdf
+            </p>
           </div>
-
-          <div className="flex items-center justify-between text-xs text-slate-500 px-1">
-            <span>{filteredReceipts.length} recibo(s) encontrado(s)</span>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-20 px-4 text-center space-y-4">
+            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center">
+              <FileText className="w-6 h-6" aria-hidden="true" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-base font-bold text-slate-800">Erro ao carregar o modelo</p>
+              <p className="text-xs text-slate-500 max-w-md">{error}</p>
+            </div>
             <button
               type="button"
-              onClick={loadReceipts}
-              className="hover:text-teal-600 flex items-center space-x-1"
+              onClick={loadPdf}
+              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 transition-colors"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>Atualizar</span>
+              <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Tentar Novamente</span>
             </button>
           </div>
-
-          {loading ? (
-            <div className="p-8 text-center text-slate-500 text-xs">Carregando recibos...</div>
-          ) : filteredReceipts.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 text-xs space-y-2">
-              <FileText className="w-8 h-8 text-slate-300 mx-auto" />
-              <p>Nenhum recibo emitido até o momento.</p>
+        ) : (
+          <div className="flex flex-col">
+            {/* Barra informativa do modelo */}
+            <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs text-slate-600 gap-2">
+              <span className="font-medium flex items-center text-slate-700">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 mr-2 shrink-0" aria-hidden="true" />
+                Arquivo original: <strong className="ml-1 text-slate-900">RECIBO SERVICO.pdf</strong> (sem preenchimento automático)
+              </span>
+              <span className="text-slate-500 text-[11px]">
+                Utilize o botão &ldquo;Imprimir documento&rdquo; ou os controles nativos do visualizador para imprimir em A4.
+              </span>
             </div>
-          ) : (
-            <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
-              {filteredReceipts.map((r) => {
-                const isSelected = selectedReceipt?.id === r.id;
-                return (
-                  <div
-                    key={r.id}
-                    onClick={() => setSelectedReceipt(r)}
-                    className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                      isSelected
-                        ? 'border-teal-500 bg-teal-50/50 shadow-xs'
-                        : 'border-slate-200 bg-white hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="font-semibold text-slate-800 text-sm">{r.title}</h4>
-                        <div className="text-xs text-slate-500 flex items-center space-x-1 mt-1">
-                          <User className="w-3 h-3 text-teal-600" />
-                          <span>{r.student?.name || 'Aluno'}</span>
-                        </div>
-                      </div>
-                      <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        Emitido
-                      </span>
-                    </div>
 
-                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-100 text-[11px] text-slate-400">
-                      <span>Data: {new Date(r.issueDate || r.createdAt).toLocaleDateString('pt-BR')}</span>
-                      {r.enrollmentId && (
-                        <Link
-                          to={`/enrollments/${r.enrollmentId}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-teal-600 hover:underline font-medium flex items-center space-x-0.5"
-                        >
-                          <Eye className="w-3 h-3" />
-                          <span>Ver Matrícula</span>
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+            {/* Container responsivo para o PDF */}
+            <div className="w-full bg-slate-100 p-2 sm:p-4 overflow-auto flex justify-center">
+              <div className="w-full max-w-5xl bg-white rounded-lg shadow-md overflow-hidden border border-slate-200">
+                <iframe
+                  ref={iframeRef}
+                  id="receipt-pdf-frame"
+                  src={pdfBlobUrl ? `${pdfBlobUrl}#view=FitH` : `${pdfEndpoint}#view=FitH`}
+                  title="Visualização do PDF original RECIBO SERVICO.pdf"
+                  className="w-full h-[78vh] min-h-[640px] border-0 block"
+                />
+              </div>
             </div>
-          )}
-        </div>
-
-        {/* Coluna Direita: Editor e Visualizador A4 do Recibo Selecionado */}
-        <div className="lg:col-span-7">
-          {selectedReceipt ? (
-            <DocumentEditor
-              key={selectedReceipt.id}
-              initialContent={selectedReceipt.content}
-              title={selectedReceipt.title}
-              subtitle={`Aluno: ${selectedReceipt.student?.name || 'Não identificado'}`}
-              documentType="RECEIPT"
-              studentName={selectedReceipt.student?.name}
-              onSave={handleSaveReceiptContent}
-            />
-          ) : (
-            <div className="bg-white p-12 rounded-xl border border-slate-200 text-center text-slate-400 space-y-3">
-              <FileText className="w-12 h-12 text-slate-300 mx-auto" />
-              <p className="font-semibold text-slate-700">Selecione um recibo</p>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                Escolha um recibo da lista ao lado para visualizar o documento timbrado, editar o conteúdo ou imprimir em formato A4.
-              </p>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

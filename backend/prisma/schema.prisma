@@ -214,6 +214,7 @@ model Enrollment {
 
   payments    Payment[]
   attendances Attendance[]
+  serviceReceipt ServiceReceipt?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -312,8 +313,6 @@ model Payment {
 
   observation String?
 
-  receipt ServiceReceipt?
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -337,8 +336,8 @@ model Payment {
 model ServiceReceipt {
   id String @id @default(uuid())
 
-  paymentId String @unique
-  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  enrollmentId String @unique
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
   documentPath String?
 
@@ -351,6 +350,8 @@ model ServiceReceipt {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([enrollmentId])
 }
 
 // ============================================================

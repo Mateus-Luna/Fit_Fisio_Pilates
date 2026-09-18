@@ -1271,13 +1271,11 @@ export default function StudentsPage() {
                               const statusLabel =
                                 enr.status === 'ACTIVE'
                                   ? 'Ativa'
-                                  : enr.status === 'AWAITING_APPROVAL'
-                                  ? 'Aguardando Homologação'
-                                  : enr.status === 'PENDING_DOCUMENTATION'
-                                  ? 'Pendente Docs'
                                   : enr.status === 'SUSPENDED'
                                   ? 'Suspensa'
-                                  : 'Cancelada';
+                                  : enr.status === 'CANCELLED'
+                                  ? 'Cancelada'
+                                  : 'Pendente';
 
                               return (
                                 <Link

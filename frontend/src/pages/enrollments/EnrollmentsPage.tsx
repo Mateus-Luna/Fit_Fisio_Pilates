@@ -15,6 +15,8 @@ import {
   UserCheck,
   RefreshCw,
   X,
+  Printer,
+  Eye,
 } from '../../components/common/Icons';
 import {
   enrollmentsService,
@@ -22,6 +24,7 @@ import {
   type EnrollmentStatus,
 } from '../../services/enrollments.service';
 import { modalitiesService, type Modality } from '../../services/modalities.service';
+import { certificatesService } from '../../services/certificates.service';
 
 function getModalityBadgeStyle(name: string = ''): string {
   const lower = name.toLowerCase();
@@ -63,25 +66,6 @@ export function EnrollmentsPage() {
   useEffect(() => {
     loadData();
   }, []);
-
-  const handleRequestApproval = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      setActionLoadingId(id);
-      await enrollmentsService.requestApproval(id);
-      setActionMessage({ type: 'success', text: 'Matrícula enviada para homologação com sucesso!' });
-      await loadData();
-    } catch (err: unknown) {
-      const msg =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-          : 'Erro ao enviar para homologação.';
-      setActionMessage({ type: 'error', text: msg || 'Erro ao enviar para homologação.' });
-    } finally {
-      setActionLoadingId(null);
-      setTimeout(() => setActionMessage(null), 4000);
-    }
-  };
 
   const handleApprove = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -135,6 +119,45 @@ export function EnrollmentsPage() {
           ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
           : 'Erro ao reativar matrícula.';
       setActionMessage({ type: 'error', text: msg || 'Erro ao reativar matrícula.' });
+    } finally {
+      setActionLoadingId(null);
+      setTimeout(() => setActionMessage(null), 4000);
+    }
+  };
+
+  const handlePrintDocument = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setActionLoadingId(id);
+      const blob = await certificatesService.getPdfBlob(id);
+      const blobUrl = URL.createObjectURL(blob);
+      const printWindow = window.open(blobUrl, '_blank');
+      if (printWindow) {
+        printWindow.onload = () => printWindow.print();
+      } else {
+        const printIframe = document.createElement('iframe');
+        printIframe.style.position = 'fixed';
+        printIframe.style.right = '0';
+        printIframe.style.bottom = '0';
+        printIframe.style.width = '0';
+        printIframe.style.height = '0';
+        printIframe.style.border = '0';
+        printIframe.src = blobUrl;
+        document.body.appendChild(printIframe);
+        printIframe.onload = () => {
+          setTimeout(() => {
+            printIframe.contentWindow?.focus();
+            printIframe.contentWindow?.print();
+          }, 300);
+        };
+      }
+      setActionMessage({ type: 'success', text: 'Documento homologado aberto para impressão!' });
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : 'Erro ao imprimir documento homologado.';
+      setActionMessage({ type: 'error', text: msg || 'Erro ao imprimir documento homologado.' });
     } finally {
       setActionLoadingId(null);
       setTimeout(() => setActionMessage(null), 4000);
@@ -591,33 +614,18 @@ export function EnrollmentsPage() {
                       {/* Ações de Homologação e Ciclo de Vida */}
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end space-x-1.5" onClick={(evt) => evt.stopPropagation()}>
-                          {/* Se Pendente de Documentação */}
-                          {e.status === 'PENDING_DOCUMENTATION' && (
-                            <button
-                              type="button"
-                              onClick={(event) => handleRequestApproval(e.id, event)}
-                              disabled={actionLoadingId === e.id}
-                              title="Avançar para homologação após conferir documentos"
-                              className="inline-flex items-center space-x-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500"
-                              aria-label={`Enviar matrícula de ${e.student?.name} para homologação`}
-                            >
-                              <FileCheck className="w-3.5 h-3.5" aria-hidden="true" />
-                              <span>Enviar p/ Homologar</span>
-                            </button>
-                          )}
-
-                          {/* Se Aguardando Homologação (Aline pode Homologar com 1 clique) */}
-                          {e.status === 'AWAITING_APPROVAL' && (
+                          {/* Se Matrícula Pendente de Ativação */}
+                          {(e.status === 'AWAITING_APPROVAL' || e.status === 'PENDING_DOCUMENTATION') && (
                             <button
                               type="button"
                               onClick={(event) => handleApprove(e.id, event)}
                               disabled={actionLoadingId === e.id}
-                              title="Homologar Matrícula (Ativar Imediatamente)"
-                              className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-emerald-600"
-                              aria-label={`Homologar matrícula de ${e.student?.name}`}
+                              title="Ativar Matrícula Imediatamente"
+                              className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-emerald-600"
+                              aria-label={`Ativar matrícula de ${e.student?.name}`}
                             >
                               <UserCheck className="w-3.5 h-3.5" aria-hidden="true" />
-                              <span>Homologar</span>
+                              <span>Ativar</span>
                             </button>
                           )}
 
@@ -650,6 +658,29 @@ export function EnrollmentsPage() {
                               <span>Reativar</span>
                             </button>
                           )}
+
+                          {/* Botão Ver Contrato / Recibo Oficial */}
+                          <Link
+                            to={`/enrollments/${e.id}#tab-receipt`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="p-1.5 text-slate-500 hover:text-teal-700 rounded-lg hover:bg-teal-50 transition-colors"
+                            title="Ver Contrato / Recibo Oficial"
+                            aria-label={`Ver contrato de prestação de serviços de ${e.student?.name}`}
+                          >
+                            <Eye className="w-4 h-4" aria-hidden="true" />
+                          </Link>
+
+                          {/* Botão Imprimir Contrato */}
+                          <button
+                            type="button"
+                            onClick={(event) => handlePrintDocument(e.id, event)}
+                            disabled={actionLoadingId === e.id}
+                            className="p-1.5 text-slate-500 hover:text-teal-700 rounded-lg hover:bg-teal-50 transition-colors disabled:opacity-40"
+                            title="Imprimir Contrato p/ Assinatura"
+                            aria-label={`Imprimir contrato de ${e.student?.name}`}
+                          >
+                            <Printer className="w-4 h-4" aria-hidden="true" />
+                          </button>
 
                           {/* Link de Navegação / Detalhes */}
                           <Link

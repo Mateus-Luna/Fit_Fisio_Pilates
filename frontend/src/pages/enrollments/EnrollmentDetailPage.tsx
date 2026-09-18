@@ -11,7 +11,6 @@ import {
   PauseCircle,
   XCircle,
   Edit3,
-  FileText,
   FileBadge,
   Printer,
   Plus,
@@ -19,6 +18,9 @@ import {
   AlertCircle,
   Layers,
   Sparkles,
+  FileCheck,
+  Eye,
+  MapPin,
 } from '../../components/common/Icons';
 import {
   enrollmentsService,
@@ -27,12 +29,18 @@ import {
 } from '../../services/enrollments.service';
 import { documentsService, type AppDocument } from '../../services/documents.service';
 import { classesService, type Class } from '../../services/classes.service';
-import { DocumentEditor } from '../../components/documents/DocumentEditor';
+import {
+  certificatesService,
+  type CertificateMetadataResponse,
+} from '../../services/certificates.service';
+import { CertificateViewer } from '../../components/certificates/CertificateViewer';
 
 export function EnrollmentDetailPage() {
   const { id } = useParams<{ id: string }>();
 
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
+  const [certificateMeta, setCertificateMeta] = useState<CertificateMetadataResponse | null>(null);
+  const [isCertificateViewerModalOpen, setIsCertificateViewerModalOpen] = useState(false);
   const [documents, setDocuments] = useState<AppDocument[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +74,15 @@ export function EnrollmentDetailPage() {
       const docs = await documentsService.findAll({ enrollmentId: id });
       setDocuments(docs);
 
+      // Carregar metadados do documento oficial Certificate (Recibo de Serviço)
+      try {
+        const certData = await certificatesService.getMetadata(id);
+        setCertificateMeta(certData);
+      } catch (certErr) {
+        console.warn('Documento Certificate ainda não inicializado para esta matrícula:', certErr);
+        setCertificateMeta(null);
+      }
+
       // Carregar turmas da modalidade para edição
       if (enr.modalityId) {
         const clsList = await classesService.findAll(enr.modalityId);
@@ -90,29 +107,37 @@ export function EnrollmentDetailPage() {
   }, [id]);
 
   // Transições de status
-  const handleRequestApproval = async () => {
-    if (!id) return;
-    try {
-      setActionLoading(true);
-      await enrollmentsService.requestApproval(id);
-      setFeedback({ type: 'success', text: 'Matrícula enviada para homologação com sucesso!' });
-      await loadData();
-    } catch (err: any) {
-      setFeedback({ type: 'error', text: err?.response?.data?.message || 'Erro ao solicitar aprovação.' });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const handleApprove = async () => {
     if (!id) return;
     try {
       setActionLoading(true);
       await enrollmentsService.approve(id);
-      setFeedback({ type: 'success', text: 'Matrícula HOMOLOGADA com sucesso! O aluno está ativo nesta modalidade.' });
+      setFeedback({ type: 'success', text: 'Matrícula ATIVADA com sucesso! O aluno está ativo nesta modalidade.' });
       await loadData();
     } catch (err: any) {
-      setFeedback({ type: 'error', text: err?.response?.data?.message || 'Erro ao homologar matrícula.' });
+      setFeedback({ type: 'error', text: err?.response?.data?.message || 'Erro ao ativar matrícula.' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleToggleSignedDocument = async (signed: boolean) => {
+    if (!id) return;
+    try {
+      setActionLoading(true);
+      await certificatesService.markAsSigned(id, signed);
+      setFeedback({
+        type: 'success',
+        text: signed
+          ? 'Contrato formal marcado como ASSINADO pelo aluno/responsável!'
+          : 'Status do contrato alterado para PENDENTE de assinatura física.',
+      });
+      await loadData();
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        text: err?.response?.data?.message || 'Erro ao atualizar situação de assinatura do contrato.',
+      });
     } finally {
       setActionLoading(false);
     }
@@ -181,6 +206,48 @@ export function EnrollmentDetailPage() {
     }
   };
 
+  // Imprimir documento oficial homologado diretamente
+  const handlePrintHomologatedDocument = async () => {
+    if (!id) return;
+    try {
+      setActionLoading(true);
+      const blob = await certificatesService.getPdfBlob(id);
+      const blobUrl = URL.createObjectURL(blob);
+      const printWindow = window.open(blobUrl, '_blank');
+      if (printWindow) {
+        printWindow.onload = () => {
+          printWindow.print();
+        };
+      } else {
+        // Fallback usando iframe oculto para impressão
+        const printIframe = document.createElement('iframe');
+        printIframe.style.position = 'fixed';
+        printIframe.style.right = '0';
+        printIframe.style.bottom = '0';
+        printIframe.style.width = '0';
+        printIframe.style.height = '0';
+        printIframe.style.border = '0';
+        printIframe.src = blobUrl;
+        document.body.appendChild(printIframe);
+        printIframe.onload = () => {
+          setTimeout(() => {
+            printIframe.contentWindow?.focus();
+            printIframe.contentWindow?.print();
+          }, 300);
+        };
+      }
+      setFeedback({ type: 'success', text: 'Documento homologado carregado para impressão!' });
+    } catch (err: any) {
+      console.error('Erro ao imprimir documento:', err);
+      setFeedback({
+        type: 'error',
+        text: err?.response?.data?.message || 'Erro ao carregar documento para impressão. Verifique se o documento foi gerado.',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Salvar edição de dados da matrícula
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,23 +268,6 @@ export function EnrollmentDetailPage() {
     } finally {
       setActionLoading(false);
     }
-  };
-
-  // Salvar Recibo de Serviço editado
-  const handleSaveReceipt = async (content: string) => {
-    const receiptDoc = documents.find((d) => d.type === 'RECEIPT');
-    if (receiptDoc) {
-      await documentsService.update(receiptDoc.id, { content });
-    } else if (enrollment) {
-      await documentsService.create({
-        studentId: enrollment.studentId,
-        enrollmentId: enrollment.id,
-        type: 'RECEIPT',
-        title: `Recibo de Prestação de Serviços - ${enrollment.modality?.name}`,
-        content,
-      });
-    }
-    await loadData();
   };
 
   // Salvar Novo Atestado
@@ -318,22 +368,8 @@ export function EnrollmentDetailPage() {
     );
   }
 
-  // Obter recibo existente ou template inicial
-  const receiptDoc = documents.find((d) => d.type === 'RECEIPT');
+  // Obter atestados existentes
   const certificates = documents.filter((d) => d.type === 'CERTIFICATE');
-
-  const defaultReceiptContent = `<h3>RECIBO DE PRESTAÇÃO DE SERVIÇOS</h3>
-<p>Declaramos para os devidos fins que o(a) aluno(a) <strong>${enrollment.student?.name || 'ALUNO'}</strong> encontra-se regularmente matriculado(a) no curso de <strong>${enrollment.modality?.name || 'MODALIDADE'}</strong> ministrado por FitFisio Pilates & Saúde.</p>
-<p>Condições financeiras acordadas:</p>
-<ul>
-  <li>Valor de Tabela Mensal: R$ ${Number(enrollment.contractedPrice).toFixed(2)}</li>
-  <li>Desconto aplicado: ${enrollment.discountPercentage}% (R$ ${Number(enrollment.discountAmount).toFixed(2)})</li>
-  <li><strong>Valor Final Mensal Contratado: R$ ${Number(enrollment.finalPrice).toFixed(2)}</strong></li>
-</ul>
-<p>Data de início das atividades: ${new Date(enrollment.startDate).toLocaleDateString('pt-BR')}</p>
-<p>O presente recibo atesta a contratação dos serviços descritos e a ciência das normas operacionais e de agendamento do estúdio.</p>
-<br/><br/>
-<p>FitFisio Pilates & Saúde • Aline Guimarães</p>`;
 
   return (
     <div className="space-y-6" id="enrollment-detail-page">
@@ -361,18 +397,46 @@ export function EnrollmentDetailPage() {
           </div>
         </div>
 
-        {/* Botão de Edição de Dados */}
-        {enrollment.status !== 'CANCELLED' && enrollment.status !== 'COMPLETED' && (
+        {/* Ações do Topo: Documento Homologado e Edição */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Botão Mostrar Documento da Homologação */}
           <button
             type="button"
-            onClick={() => setIsEditModalOpen(true)}
-            id="btn-edit-enrollment"
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
+            onClick={() => setIsCertificateViewerModalOpen(true)}
+            id="btn-header-show-certificate"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-teal-50 border border-teal-200 text-teal-800 hover:bg-teal-100/80 shadow-xs transition-colors"
+            title="Exibir o documento oficial de homologação"
           >
-            <Edit3 className="w-3.5 h-3.5 text-teal-600" />
-            <span>Editar Parâmetros</span>
+            <FileCheck className="w-4 h-4 text-teal-600" />
+            <span>Documento de Homologação</span>
           </button>
-        )}
+
+          {/* Botão Imprimir Documento Homologado */}
+          <button
+            type="button"
+            onClick={handlePrintHomologatedDocument}
+            disabled={actionLoading}
+            id="btn-header-print-certificate"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-xs transition-colors disabled:opacity-50"
+            title="Imprimir documento oficial homologado da matrícula"
+          >
+            <Printer className="w-4 h-4 text-slate-600" />
+            <span>Imprimir Documento Homologado</span>
+          </button>
+
+          {/* Botão de Edição de Dados */}
+          {enrollment.status !== 'CANCELLED' && enrollment.status !== 'COMPLETED' && (
+            <button
+              type="button"
+              onClick={() => setIsEditModalOpen(true)}
+              id="btn-edit-enrollment"
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-xs transition-colors"
+            >
+              <Edit3 className="w-3.5 h-3.5 text-teal-600" />
+              <span>Editar Parâmetros</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Mensagem de Feedback */}
@@ -397,119 +461,145 @@ export function EnrollmentDetailPage() {
 
       {/* SEÇÃO PRINCIPAL DE HOMOLOGAÇÃO / FLUXO DE STATUS */}
       <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center space-x-2">
             <Sparkles className="w-5 h-5 text-teal-600" />
             <h2 className="text-base font-bold text-slate-800">
-              Fluxo de Homologação da Matrícula
+              Formalização e Situação da Matrícula
             </h2>
           </div>
-          <div className="text-xs text-slate-500">
-            Regra de Negócio: Pendente Documentação → Aguardando Homologação → Homologada (Ativa)
+          <div className="flex items-center space-x-2">
+            {getStatusBadge(enrollment.status)}
+            {certificateMeta?.receipt?.status === 'APPROVED' ? (
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                Contrato Assinado
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                <Clock className="w-3.5 h-3.5 mr-1 text-amber-700" />
+                Contrato Pendente de Assinatura
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Linha do Tempo Visual de Etapas */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div
-            className={`p-3.5 rounded-xl border text-xs ${
-              enrollment.status === 'PENDING_DOCUMENTATION'
-                ? 'border-amber-300 bg-amber-50/50 text-amber-900 font-semibold'
-                : 'border-slate-200 bg-slate-50 text-slate-500'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-1">
-              <span>Etapa 1: Documentação</span>
-              {enrollment.status !== 'PENDING_DOCUMENTATION' && (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              )}
+        {/* Painel de Formalização do Contrato Físico */}
+        <div className="bg-teal-50/50 border border-teal-200/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+          <div className="flex items-start sm:items-center space-x-3">
+            <span className="p-2.5 bg-white text-teal-700 rounded-lg border border-teal-200 shadow-2xs">
+              <FileCheck className="w-5 h-5" />
+            </span>
+            <div>
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                <span className="font-bold text-slate-900 text-sm">
+                  Contrato de Prestação de Serviços (RECIBO SERVICO.pdf)
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-0.5">
+                {certificateMeta?.receipt?.status === 'APPROVED' ? (
+                  <span className="text-emerald-800 font-medium">
+                    ✓ Via física impressa e assinada pelo aluno/responsável. Matrícula formalizada.
+                  </span>
+                ) : (
+                  <span className="text-amber-800 font-medium">
+                    • Documento emitido. Imprima para assinatura física no balcão e registre aqui após assinado.
+                  </span>
+                )}
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Mensalidade: R$ {Number(enrollment.finalPrice).toFixed(2)}/mês • Modalidade: {enrollment.modality?.name} • Início: {new Date(enrollment.startDate).toLocaleDateString('pt-BR')}
+              </p>
             </div>
-            <p className="text-[11px] font-normal text-slate-600">
-              Conferência de dados, atestados médicos e geração do recibo de serviço.
-            </p>
           </div>
 
-          <div
-            className={`p-3.5 rounded-xl border text-xs ${
-              enrollment.status === 'AWAITING_APPROVAL'
-                ? 'border-blue-300 bg-blue-50/60 text-blue-900 font-semibold'
-                : ['ACTIVE', 'SUSPENDED'].includes(enrollment.status)
-                ? 'border-slate-200 bg-slate-50 text-slate-500'
-                : 'border-slate-200 bg-slate-50 text-slate-400'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-1">
-              <span>Etapa 2: Aguardando Homologação</span>
-              {['ACTIVE', 'SUSPENDED'].includes(enrollment.status) && (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              )}
-            </div>
-            <p className="text-[11px] font-normal text-slate-600">
-              Validação final e autorização formal pela administradora Aline.
-            </p>
-          </div>
+          <div className="flex items-center space-x-2 shrink-0 flex-wrap gap-y-2">
+            {/* Botão para marcar como assinado / pendente */}
+            {certificateMeta?.receipt?.status !== 'APPROVED' ? (
+              <button
+                type="button"
+                onClick={() => handleToggleSignedDocument(true)}
+                disabled={actionLoading}
+                id="btn-mark-signed-quick"
+                className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors disabled:opacity-50"
+                title="Registrar que o aluno assinou a via física do contrato"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Marcar como assinado</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleToggleSignedDocument(false)}
+                disabled={actionLoading}
+                id="btn-mark-pending-quick"
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs border border-slate-200 transition-colors disabled:opacity-50"
+                title="Voltar contrato para pendente de assinatura"
+              >
+                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                <span>Marcar como pendente</span>
+              </button>
+            )}
 
-          <div
-            className={`p-3.5 rounded-xl border text-xs ${
-              enrollment.status === 'ACTIVE'
-                ? 'border-emerald-300 bg-emerald-50/60 text-emerald-900 font-semibold'
-                : 'border-slate-200 bg-slate-50 text-slate-400'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-1">
-              <span>Etapa 3: Matrícula Homologada</span>
-              {enrollment.status === 'ACTIVE' && (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              )}
-            </div>
-            <p className="text-[11px] font-normal text-slate-600">
-              Aluno ativado e constando na lista oficial da modalidade e turma.
-            </p>
+            {/* Imprimir para assinatura */}
+            <button
+              type="button"
+              onClick={handlePrintHomologatedDocument}
+              disabled={actionLoading}
+              id="btn-banner-print-certificate"
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white border border-teal-300 hover:bg-teal-50 text-teal-800 font-semibold text-xs shadow-2xs transition-colors disabled:opacity-50"
+              title="Imprimir contrato para coleta da assinatura física"
+            >
+              <Printer className="w-4 h-4 text-teal-600" />
+              <span>Imprimir Contrato</span>
+            </button>
+
+            {/* Ver Documento na aba */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('RECEIPT');
+                const el = document.getElementById('tab-receipt');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              id="btn-goto-certificate-tab"
+              className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs shadow-2xs transition-colors"
+            >
+              <Eye className="w-3.5 h-3.5 text-slate-500" />
+              <span>Visualizar</span>
+            </button>
           </div>
         </div>
 
-        {/* Botões de Ação de Acordo com o Status Atual */}
+        {/* Barra de Gestão da Matrícula */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-          <div className="text-xs text-slate-600">
-            {enrollment.approvedAt && (
-              <span className="text-emerald-700 font-medium">
-                Homologada em: {new Date(enrollment.approvedAt).toLocaleDateString('pt-BR')} às{' '}
+          <div className="text-xs text-slate-500">
+            {enrollment.approvedAt ? (
+              <span className="text-slate-600">
+                Registrada no sistema em: {new Date(enrollment.approvedAt).toLocaleDateString('pt-BR')} às{' '}
                 {new Date(enrollment.approvedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
               </span>
+            ) : (
+              <span>Cadastrada em: {new Date(enrollment.createdAt).toLocaleDateString('pt-BR')}</span>
             )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Se Pendente de Documentação */}
-            {enrollment.status === 'PENDING_DOCUMENTATION' && (
-              <button
-                type="button"
-                onClick={handleRequestApproval}
-                disabled={actionLoading}
-                id="btn-request-approval"
-                className="inline-flex items-center space-x-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-amber-600 hover:bg-amber-700 text-white shadow-sm transition-all"
-              >
-                <Clock className="w-4 h-4" />
-                <span>Enviar p/ Homologação</span>
-              </button>
-            )}
-
-            {/* Se Aguardando Homologação (Aline Homologa) */}
-            {enrollment.status === 'AWAITING_APPROVAL' && (
+            {/* Se porventura a matrícula for legada e estiver pendente, botão direto para ativar */}
+            {(enrollment.status === 'PENDING_DOCUMENTATION' || enrollment.status === 'AWAITING_APPROVAL') && (
               <button
                 type="button"
                 onClick={handleApprove}
                 disabled={actionLoading}
                 id="btn-approve-enrollment"
-                className="inline-flex items-center space-x-1.5 px-5 py-2.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs hover:shadow transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-600 disabled:opacity-50"
-                aria-label={`Homologar e ativar matrícula de ${enrollment.student?.name}`}
+                className="inline-flex items-center space-x-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-all disabled:opacity-50"
               >
-                <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-                <span>HOMOLOGAR MATRÍCULA</span>
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Ativar Matrícula</span>
               </button>
             )}
 
-            {/* Se Ativa */}
+            {/* Se Ativa: Suspender */}
             {enrollment.status === 'ACTIVE' && (
               <button
                 type="button"
@@ -522,7 +612,7 @@ export function EnrollmentDetailPage() {
               </button>
             )}
 
-            {/* Se Suspensa */}
+            {/* Se Suspensa: Reativar */}
             {enrollment.status === 'SUSPENDED' && (
               <button
                 type="button"
@@ -577,10 +667,16 @@ export function EnrollmentDetailPage() {
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          <FileText className="w-4 h-4" />
-          <span>Recibo de Serviço</span>
-          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-teal-100 text-teal-800">
-            {receiptDoc ? 'Emitido' : 'Disponível'}
+          <FileCheck className="w-4 h-4" />
+          <span>Contrato / Recibo de Serviços</span>
+          <span
+            className={`px-2 py-0.5 text-[10px] font-bold rounded ${
+              certificateMeta?.receipt?.status === 'APPROVED'
+                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                : 'bg-amber-100 text-amber-900 border border-amber-200'
+            }`}
+          >
+            {certificateMeta?.receipt?.status === 'APPROVED' ? 'Assinado' : 'Pendente'}
           </span>
         </button>
 
@@ -620,6 +716,13 @@ export function EnrollmentDetailPage() {
               <div className="flex justify-between py-1.5 border-b border-slate-50">
                 <span className="text-slate-500">Telefone:</span>
                 <span className="text-slate-700">{enrollment.student?.phone || '-'}</span>
+              </div>
+              <div className="flex justify-between py-1.5 border-b border-slate-50">
+                <span className="text-slate-500 flex items-center">
+                  <MapPin className="w-3.5 h-3.5 mr-1 text-slate-400" />
+                  <span>Endereço:</span>
+                </span>
+                <span className="text-slate-700 text-right max-w-xs">{enrollment.student?.address || 'Não informado'}</span>
               </div>
               <div className="flex justify-between py-1.5 border-b border-slate-50">
                 <span className="text-slate-500">Modalidade:</span>
@@ -700,16 +803,17 @@ export function EnrollmentDetailPage() {
         </div>
       )}
 
-      {/* ABA RECIBO DE PRESTAÇÃO DE SERVIÇO */}
+      {/* ABA DOCUMENTO OFICIAL DE HOMOLOGAÇÃO (CERTIFICATE) */}
       {activeTab === 'RECEIPT' && (
         <div className="space-y-4">
-          <DocumentEditor
-            initialContent={receiptDoc ? receiptDoc.content : defaultReceiptContent}
-            title={`Recibo de Prestação de Serviços — ${enrollment.modality?.name}`}
-            subtitle={`Aluno(a): ${enrollment.student?.name} • Valor: R$ ${Number(enrollment.finalPrice).toFixed(2)}`}
-            documentType="RECEIPT"
+          <CertificateViewer
+            enrollmentId={enrollment.id}
             studentName={enrollment.student?.name}
-            onSave={handleSaveReceipt}
+            modalityName={enrollment.modality?.name}
+            finalPrice={Number(enrollment.finalPrice)}
+            onStatusChange={async () => {
+              await loadData();
+            }}
           />
         </div>
       )}
@@ -1007,6 +1111,49 @@ export function EnrollmentDetailPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE VISUALIZAÇÃO DIRETA DO DOCUMENTO OFICIAL (CERTIFICATE PDF) */}
+      {isCertificateViewerModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center space-x-2.5">
+                <span className="p-1.5 bg-teal-100 text-teal-800 rounded-lg">
+                  <FileCheck className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">
+                    Visualizador Oficial do Documento de Homologação (Certificate)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Aluno(a): {enrollment.student?.name} • {enrollment.modality?.name} • Mensalidade: R${' '}
+                    {Number(enrollment.finalPrice).toFixed(2)}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCertificateViewerModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg font-bold transition-colors"
+                aria-label="Fechar visualizador"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1 bg-slate-100">
+              <CertificateViewer
+                enrollmentId={enrollment.id}
+                studentName={enrollment.student?.name}
+                modalityName={enrollment.modality?.name}
+                finalPrice={Number(enrollment.finalPrice)}
+                onStatusChange={async () => {
+                  await loadData();
+                }}
+              />
+            </div>
           </div>
         </div>
       )}
