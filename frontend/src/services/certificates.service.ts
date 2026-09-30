@@ -7,6 +7,8 @@ export interface ServiceReceipt {
   enrollmentId: string;
   documentPath: string;
   status: CertificateStatus;
+  isSigned?: boolean;
+  signedAt?: string | null;
   filledAt?: string;
   approvedAt?: string | null;
   observation?: string | null;
@@ -99,7 +101,7 @@ export const certificatesService = {
       `/enrollments/${enrollmentId}/document/status`,
       {
         status: signed ? 'APPROVED' : 'PENDING',
-        signed,
+        isSigned: signed,
       },
     );
     return response.data;

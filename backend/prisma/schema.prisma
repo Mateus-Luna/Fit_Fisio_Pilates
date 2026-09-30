@@ -215,6 +215,7 @@ model Enrollment {
   payments    Payment[]
   attendances Attendance[]
   serviceReceipt ServiceReceipt?
+  medicalCertificates MedicalCertificate[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -342,6 +343,9 @@ model ServiceReceipt {
   documentPath String?
 
   status DocumentStatus @default(PENDING)
+  
+  isSigned Boolean @default(false)
+  signedAt DateTime?
 
   filledAt   DateTime?
   approvedAt DateTime?
@@ -363,10 +367,15 @@ model MedicalCertificate {
 
   studentId String
   student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  enrollmentId String?
+  enrollment   Enrollment? @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
   type CertificateType @default(MEDICAL)
 
-  documentPath String
+  title        String?
+  content      String?
+  documentPath String?
 
   issueDate      DateTime?
   expirationDate DateTime?
@@ -379,6 +388,7 @@ model MedicalCertificate {
   updatedAt DateTime @updatedAt
 
   @@index([studentId])
+  @@index([enrollmentId])
   @@index([expirationDate])
 }
 

@@ -546,6 +546,9 @@ export class EnrollmentDocumentService {
   /**
    * Atualiza o status do documento (PENDING, APPROVED, REJECTED)
    */
+  /**
+   * Atualiza o status do documento (PENDING, APPROVED, REJECTED)
+   */
   async updateReceiptStatus(
     enrollmentId: string,
     status: 'PENDING' | 'APPROVED' | 'REJECTED',
@@ -557,26 +560,8 @@ export class EnrollmentDocumentService {
 
     if (!receipt) {
       throw new NotFoundException(
-        `Documento de recibo para matrícula ${enrollmentId} não encontrado.`,
+        'Recibo de serviço não encontrado para esta matrícula.',
       );
-    }
-
-    if (status === 'APPROVED') {
-      await this.prisma.enrollment.updateMany({
-        where: {
-          id: enrollmentId,
-          status: {
-            in: [
-              'PENDING_DOCUMENTATION',
-              'AWAITING_APPROVAL',
-            ] as any,
-          },
-        },
-        data: {
-          status: 'ACTIVE' as any,
-          approvedAt: new Date(),
-        },
-      });
     }
 
     return this.prisma.serviceReceipt.update({
@@ -588,4 +573,39 @@ export class EnrollmentDocumentService {
       },
     });
   }
+
+  /**
+   * Atualiza exclusivamente a assinatura do recibo.
+   *
+   * isSigned = true:
+   *   - marca o documento como assinado;
+   *   - registra a data/hora da assinatura.
+   *
+   * isSigned = false:
+   *   - remove a marca de assinatura;
+   *   - limpa a data da assinatura.
+   */
+  async updateReceiptSignature(
+    enrollmentId: string,
+    isSigned: boolean,
+  ) {
+    const receipt = await this.prisma.serviceReceipt.findUnique({
+      where: { enrollmentId },
+    });
+
+    if (!receipt) {
+      throw new NotFoundException(
+        'Recibo de serviço não encontrado para esta matrícula.',
+      );
+    }
+
+    return this.prisma.serviceReceipt.update({
+      where: { enrollmentId },
+      data: {
+        isSigned,
+        signedAt: isSigned ? new Date() : null,
+      },
+    });
+  }
 }
+

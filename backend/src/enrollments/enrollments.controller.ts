@@ -47,6 +47,9 @@ export class EnrollmentsController {
     );
   }
 
+  /**
+   * Gera o RECIBO SERVICO.pdf preenchido para a matrícula.
+   */
   @Post(':id/document/generate')
   generateDocument(
     @Param('id') id: string,
@@ -59,11 +62,18 @@ export class EnrollmentsController {
     return this.documentService.generateReceipt(id, body);
   }
 
+  /**
+   * Retorna os metadados do recibo.
+   * Caso ainda não exista, o serviço poderá gerar automaticamente.
+   */
   @Get(':id/document')
   getDocument(@Param('id') id: string) {
     return this.documentService.getReceiptMetadata(id);
   }
 
+  /**
+   * Retorna o PDF do recibo.
+   */
   @Get(':id/document/pdf')
   async getDocumentPdf(
     @Param('id') id: string,
@@ -81,6 +91,9 @@ export class EnrollmentsController {
     return res.end(buffer);
   }
 
+  /**
+   * Atualiza o status do recibo.
+   */
   @Patch(':id/document/status')
   updateDocumentStatus(
     @Param('id') id: string,
@@ -94,6 +107,20 @@ export class EnrollmentsController {
       id,
       body.status,
       body.observation,
+    );
+  }
+
+  /**
+   * Atualiza exclusivamente a assinatura do recibo.
+   */
+  @Patch(':id/document/sign')
+  updateDocumentSignature(
+    @Param('id') id: string,
+    @Body() body: { isSigned: boolean },
+  ) {
+    return this.documentService.updateReceiptSignature(
+      id,
+      body.isSigned,
     );
   }
 

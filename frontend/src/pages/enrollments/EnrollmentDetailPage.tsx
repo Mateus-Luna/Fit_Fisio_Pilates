@@ -470,7 +470,7 @@ export function EnrollmentDetailPage() {
           </div>
           <div className="flex items-center space-x-2">
             {getStatusBadge(enrollment.status)}
-            {certificateMeta?.receipt?.status === 'APPROVED' ? (
+            {certificateMeta?.receipt?.isSigned ? (
               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                 <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />
                 Contrato Assinado
@@ -497,7 +497,7 @@ export function EnrollmentDetailPage() {
                 </span>
               </div>
               <p className="text-xs text-slate-600 mt-0.5">
-                {certificateMeta?.receipt?.status === 'APPROVED' ? (
+                {certificateMeta?.receipt?.isSigned ? (
                   <span className="text-emerald-800 font-medium">
                     ✓ Via física impressa e assinada pelo aluno/responsável. Matrícula formalizada.
                   </span>
@@ -515,7 +515,7 @@ export function EnrollmentDetailPage() {
 
           <div className="flex items-center space-x-2 shrink-0 flex-wrap gap-y-2">
             {/* Botão para marcar como assinado / pendente */}
-            {certificateMeta?.receipt?.status !== 'APPROVED' ? (
+            {!certificateMeta?.receipt?.isSigned ? (
               <button
                 type="button"
                 onClick={() => handleToggleSignedDocument(true)}
@@ -671,12 +671,12 @@ export function EnrollmentDetailPage() {
           <span>Contrato / Recibo de Serviços</span>
           <span
             className={`px-2 py-0.5 text-[10px] font-bold rounded ${
-              certificateMeta?.receipt?.status === 'APPROVED'
+              certificateMeta?.receipt?.isSigned
                 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                 : 'bg-amber-100 text-amber-900 border border-amber-200'
             }`}
           >
-            {certificateMeta?.receipt?.status === 'APPROVED' ? 'Assinado' : 'Pendente'}
+            {certificateMeta?.receipt?.isSigned ? 'Assinado' : 'Pendente'}
           </span>
         </button>
 
