@@ -1,9 +1,28 @@
+import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 
 import { useAuth } from '../../context/AuthContext';
+import { notificationsService } from '../../services/notifications.service';
 
 export default function Navbar() {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+
+  useEffect(() => {
+    async function checkUnread() {
+      try {
+        const notifs = await notificationsService.findAll(user?.id);
+        const count = Array.isArray(notifs) ? notifs.filter((n) => !n.readAt).length : 0;
+        setUnreadCount(count);
+      } catch {
+        // silent
+      }
+    }
+
+    checkUnread();
+    const interval = setInterval(checkUnread, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   const linkClass = ({
     isActive,
@@ -223,9 +242,26 @@ export default function Navbar() {
           <NavLink
             to="/notifications"
             className={linkClass}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
           >
-            <span>🔔</span>
-            Notificações
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>🔔</span>
+              <span>Notificações</span>
+            </div>
+            {unreadCount > 0 && (
+              <span
+                style={{
+                  background: '#ef4444',
+                  color: '#fff',
+                  borderRadius: '9999px',
+                  padding: '1px 6px',
+                  fontSize: '10px',
+                  fontWeight: 'bold',
+                }}
+              >
+                {unreadCount}
+              </span>
+            )}
           </NavLink>
 
           <NavLink

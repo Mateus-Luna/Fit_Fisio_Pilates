@@ -10,6 +10,14 @@ import {
   studentsService,
   type Student,
 } from '../../services/students.service';
+import {
+  notificationsService,
+  type AppNotification,
+} from '../../services/notifications.service';
+import {
+  paymentsService,
+  type Payment,
+} from '../../services/payments.service';
 import { ModalityEditModal } from '../../components/modalities/ModalityEditModal';
 
 function formatCurrency(value: number | string): string {
@@ -140,6 +148,8 @@ export default function Dashboard() {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [modalities, setModalities] = useState<Modality[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Edição direta de modalidades no Dashboard
@@ -150,12 +160,16 @@ export default function Dashboard() {
     async function loadDashboardData() {
       try {
         setLoading(true);
-        const [studentsData, modalitiesData] = await Promise.all([
+        const [studentsData, modalitiesData, notificationsData, paymentsData] = await Promise.all([
           studentsService.findAll(),
           modalitiesService.findAll(),
+          notificationsService.findAll(user?.id),
+          paymentsService.findAll(),
         ]);
-        setStudents(studentsData);
-        setModalities(modalitiesData);
+        setStudents(Array.isArray(studentsData) ? studentsData : []);
+        setModalities(Array.isArray(modalitiesData) ? modalitiesData : []);
+        setNotifications(Array.isArray(notificationsData) ? notificationsData : []);
+        setPayments(Array.isArray(paymentsData) ? paymentsData : []);
       } catch (err) {
         console.error('Erro ao carregar dados do dashboard:', err);
       } finally {
@@ -164,14 +178,49 @@ export default function Dashboard() {
     }
 
     loadDashboardData();
-  }, []);
+  }, [user]);
+
+  async function handleMarkAsRead(id: string) {
+    try {
+      await notificationsService.markAsRead(id);
+      setNotifications((prev) =>
+        Array.isArray(prev) ? prev.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n)) : [],
+      );
+    } catch (err) {
+      console.error('Erro ao marcar notificação:', err);
+    }
+  }
+
+  async function handleMarkAllAsRead() {
+    if (!user?.id) return;
+    try {
+      await notificationsService.markAllAsRead(user.id);
+      setNotifications((prev) =>
+        Array.isArray(prev) ? prev.map((n) => ({ ...n, readAt: new Date().toISOString() })) : [],
+      );
+    } catch (err) {
+      console.error('Erro ao marcar todas:', err);
+    }
+  }
 
   // Cálculos dinâmicos com dados reais
-  const totalStudents = students.length;
-  const activeStudentsCount = students.filter((s) => s.active).length;
+  const safeStudents = Array.isArray(students) ? students : [];
+  const safeNotifications = Array.isArray(notifications) ? notifications : [];
+  const safePayments = Array.isArray(payments) ? payments : [];
 
-  // Recebido este mês: soma das matrículas ativas contratadas
-  const receivedThisMonth = students.reduce((sum: number, s: Student) => {
+  const totalStudents = safeStudents.length;
+  const activeStudentsCount = safeStudents.filter((s) => s.active).length;
+  const unreadNotificationsCount = safeNotifications.filter((n) => !n.readAt).length;
+
+  const currentMonth = new Date().getMonth() + 1;
+  const currentYear = new Date().getFullYear();
+
+  // Recebido este mês com base em pagamentos reais liquidados (ou fallback de matrículas ativas se não geradas ainda)
+  const paidThisMonthFromPayments = safePayments
+    .filter((p) => p.status === 'PAID' && p.referenceMonth === currentMonth && p.referenceYear === currentYear)
+    .reduce((sum, p) => sum + Number(p.finalAmount || 0), 0);
+
+  const fallbackActiveEnrollmentTotal = safeStudents.reduce((sum: number, s: Student) => {
     if (!s.enrollments || !s.active) return sum;
     const studentTotal = s.enrollments
       .filter((e) => e.status === 'ACTIVE')
@@ -179,14 +228,20 @@ export default function Dashboard() {
     return sum + studentTotal;
   }, 0);
 
-  const activeEnrollmentsCount = students.reduce((count: number, s: Student) => {
+  const receivedThisMonth = paidThisMonthFromPayments > 0 ? paidThisMonthFromPayments : fallbackActiveEnrollmentTotal;
+
+  const activeEnrollmentsCount = safeStudents.reduce((count: number, s: Student) => {
     if (!s.enrollments || !s.active) return count;
     return count + s.enrollments.filter((e) => e.status === 'ACTIVE').length;
   }, 0);
 
-  // Inadimplentes: alunos ativos sem matrícula ativa ou com status de pendência
-  const inadimplentesList = students.filter((s: Student) => {
+  // Inadimplentes: verificados via pagamentos OVERDUE reais e pendências cadastrais
+  const overduePayments = safePayments.filter((p) => p.status === 'OVERDUE');
+  const overdueStudentIds = new Set(overduePayments.map((p) => p.studentId));
+
+  const inadimplentesList = safeStudents.filter((s: Student) => {
     if (!s.active) return false;
+    if (overdueStudentIds.has(s.id)) return true;
     if (!s.enrollments || s.enrollments.length === 0) return true;
     return s.enrollments.some(
       (e) =>
@@ -194,7 +249,7 @@ export default function Dashboard() {
     );
   });
 
-  const inadimplentesCount = inadimplentesList.length;
+  const inadimplentesCount = Math.max(inadimplentesList.length, overduePayments.length);
 
   // Modalidades ativas com turmas presenciais / piscina
   const turmasPiscinaCount = modalities.filter(
@@ -235,6 +290,43 @@ export default function Dashboard() {
         </div>
 
         <div style={{ display: 'flex', gap: '8px' }}>
+          <Link
+            to="/notifications"
+            className="btn-secondary"
+            style={{
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              position: 'relative',
+            }}
+            title="Ver notificações do sistema"
+          >
+            <span>🔔</span>
+            <span>Notificações</span>
+            {unreadNotificationsCount > 0 && (
+              <span
+                style={{
+                  background: '#ef4444',
+                  color: '#fff',
+                  borderRadius: '9999px',
+                  padding: '2px 7px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                }}
+              >
+                {unreadNotificationsCount}
+              </span>
+            )}
+          </Link>
+          <Link
+            to="/finance"
+            className="btn-secondary"
+            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>💰</span>
+            <span>Financeiro</span>
+          </Link>
           <Link
             to="/enrollments"
             className="btn-secondary"
@@ -437,36 +529,109 @@ export default function Dashboard() {
 
       {/* NOTIFICAÇÕES E ALERTAS DE INADIMPLÊNCIA / OPERAÇÃO */}
       <div className="dashboard-section">
-        <h2>Notificações do Sistema</h2>
-        <p className="dashboard-section-desc">
-          Avisos automáticos de pendências, inadimplências e controle do estúdio.
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <div>
+            <h2>Notificações do Sistema</h2>
+            <p className="dashboard-section-desc">
+              Avisos automáticos de vencimento de mensalidades, inadimplência e controle do estúdio.
+            </p>
+          </div>
 
-        {inadimplentesList.length > 0 ? (
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {unreadNotificationsCount > 0 && (
+              <button
+                type="button"
+                onClick={handleMarkAllAsRead}
+                className="btn-secondary"
+                style={{ fontSize: '12px', padding: '6px 12px' }}
+              >
+                Marcar todas como lidas
+              </button>
+            )}
+            <Link
+              to="/notifications"
+              className="section-action-link"
+              style={{ fontSize: '13px', fontWeight: 'bold' }}
+            >
+              Ver todas ({safeNotifications.length}) →
+            </Link>
+          </div>
+        </div>
+
+        {safeNotifications.length > 0 || inadimplentesList.length > 0 ? (
           <div className="notifications-list">
-            <div className="notification-item notification-warning">
-              <div className="notif-icon-bubble">
-                <span>⚠️</span>
-              </div>
-              <div className="notif-content">
-                <div className="notif-title">
-                  Atenção: {inadimplentesList.length} aluno(s) com pendência ou
-                  sem matrícula ativa
-                </div>
-                <div className="notif-desc">
-                  Os seguintes alunos cadastrados estão ativos mas necessitam de
-                  regularização de matrícula ou pagamento de mensalidade:{' '}
-                  <strong>
-                    {inadimplentesList.map((s) => s.name).join(', ')}
-                  </strong>
-                  .
-                </div>
-                <Link to="/students" className="notif-link">
-                  Ver cadastro de alunos para regularizar →
-                </Link>
-              </div>
-            </div>
+            {/* Notificações Reais do Backend */}
+            {safeNotifications.slice(0, 5).map((notif) => {
+              const isUnread = !notif.readAt;
+              const isOverdue = notif.type === 'PAYMENT_OVERDUE';
 
+              return (
+                <div
+                  key={notif.id}
+                  className={`notification-item ${
+                    isOverdue ? 'notification-warning' : 'notification-info'
+                  }`}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    background: isUnread ? (isOverdue ? '#fff1f2' : '#f0fdfa') : '#ffffff',
+                    border: isUnread ? (isOverdue ? '1px solid #fecdd3' : '1px solid #ccfbf1') : '1px solid #e2e8f0',
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                    <div className="notif-icon-bubble">
+                      <span>{isOverdue ? '⚠️' : '🔔'}</span>
+                    </div>
+                    <div className="notif-content">
+                      <div className="notif-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>{notif.title}</span>
+                        {isUnread && (
+                          <span
+                            style={{
+                              background: '#ef4444',
+                              color: '#fff',
+                              fontSize: '10px',
+                              fontWeight: 'bold',
+                              borderRadius: '9999px',
+                              padding: '1px 6px',
+                            }}
+                          >
+                            Nova
+                          </span>
+                        )}
+                      </div>
+                      <div className="notif-desc">{notif.message}</div>
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
+                        {isOverdue && (
+                          <Link to="/finance?status=OVERDUE" className="notif-link" style={{ fontWeight: 'bold' }}>
+                            Ver no Financeiro →
+                          </Link>
+                        )}
+                        {notif.studentId && (
+                          <Link to={`/students/${notif.studentId}`} className="notif-link">
+                            Ver aluno →
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {isUnread && (
+                    <button
+                      type="button"
+                      onClick={() => handleMarkAsRead(notif.id)}
+                      className="btn-quick-edit"
+                      style={{ flexShrink: 0, marginLeft: '12px', fontSize: '11px', whiteSpace: 'nowrap' }}
+                    >
+                      ✓ Marcar lida
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Aviso Operacional de Vagas Aquáticas */}
             <div className="notification-item notification-info">
               <div className="notif-icon-bubble">
                 <span>ℹ️</span>

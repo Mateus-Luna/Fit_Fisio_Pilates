@@ -377,3 +377,58 @@ export function ExternalLink(props: IconProps) {
     </SvgBase>
   );
 }
+
+export function Bell(props: IconProps) {
+  return (
+    <SvgBase {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+    </SvgBase>
+  );
+}
+
+export function CreditCard(props: IconProps) {
+  return (
+    <SvgBase {...props}>
+      <rect x="2" y="5" width="20" height="14" rx="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2 10h20" />
+    </SvgBase>
+  );
+}
+
+export function Wallet(props: IconProps) {
+  return (
+    <SvgBase {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 4h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </SvgBase>
+  );
+}
+
+export function Banknote(props: IconProps) {
+  return (
+    <SvgBase {...props}>
+      <rect x="2" y="6" width="20" height="12" rx="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="2" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 12h.01M18 12h.01" />
+    </SvgBase>
+  );
+}
+
+export function QrCode(props: IconProps) {
+  return (
+    <SvgBase {...props}>
+      <rect x="3" y="3" width="7" height="7" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="14" y="3" width="7" height="7" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="3" y="14" width="7" height="7" strokeLinecap="round" strokeLinejoin="round" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14 14h3v3h-3zM17 17h4v4h-4zM14 20h3" />
+    </SvgBase>
+  );
+}
+
+export function CheckCheck(props: IconProps) {
+  return (
+    <SvgBase {...props}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M18 6L7 17l-5-5m16-5l-8.5 8.5M12 12l2 2" />
+    </SvgBase>
+  );
+}
+

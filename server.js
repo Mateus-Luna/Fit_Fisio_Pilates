@@ -286,6 +286,80 @@ const INITIAL_DATA = {
     },
   ],
   documents: [],
+  payments: [
+    {
+      id: 'pay-1',
+      studentId: 'std-1',
+      enrollmentId: 'enr-1',
+      referenceMonth: 10,
+      referenceYear: 2026,
+      dueDate: new Date('2026-10-10').toISOString(),
+      amount: 220,
+      discountAmount: 22,
+      finalAmount: 198,
+      method: null,
+      status: 'PENDING',
+      paidAt: null,
+      transactionId: null,
+      receiptGenerated: false,
+      observation: 'Mensalidade de Pilates - Outubro/2026',
+      createdAt: new Date('2026-10-01').toISOString(),
+      updatedAt: new Date('2026-10-01').toISOString(),
+    },
+    {
+      id: 'pay-2',
+      studentId: 'std-1',
+      enrollmentId: 'enr-1',
+      referenceMonth: 9,
+      referenceYear: 2026,
+      dueDate: new Date('2026-09-10').toISOString(),
+      amount: 220,
+      discountAmount: 22,
+      finalAmount: 198,
+      method: 'PIX',
+      status: 'PAID',
+      paidAt: new Date('2026-09-08').toISOString(),
+      transactionId: 'E2E-987123654',
+      receiptGenerated: true,
+      observation: 'Mensalidade de Pilates - Setembro/2026',
+      createdAt: new Date('2026-09-01').toISOString(),
+      updatedAt: new Date('2026-09-08').toISOString(),
+    },
+    {
+      id: 'pay-3',
+      studentId: 'std-3',
+      enrollmentId: 'enr-2',
+      referenceMonth: 10,
+      referenceYear: 2026,
+      dueDate: new Date('2026-10-10').toISOString(),
+      amount: 190,
+      discountAmount: 0,
+      finalAmount: 190,
+      method: null,
+      status: 'PENDING',
+      paidAt: null,
+      transactionId: null,
+      receiptGenerated: false,
+      observation: 'Mensalidade de Natação Criança - Outubro/2026',
+      createdAt: new Date('2026-10-01').toISOString(),
+      updatedAt: new Date('2026-10-01').toISOString(),
+    },
+  ],
+  notifications: [
+    {
+      id: 'notif-1',
+      userId: 'usr-1',
+      studentId: 'std-1',
+      type: 'SYSTEM',
+      channel: 'SYSTEM',
+      title: 'Sistema Financeiro Ativo',
+      message: 'O módulo financeiro do FitFisio está pronto para gerenciar cobranças em PIX, Cartão e Dinheiro.',
+      status: 'PENDING',
+      readAt: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+  ],
 };
 
 function loadDb() {
@@ -301,6 +375,12 @@ function loadDb() {
       }
       if (!data.serviceReceipts || !Array.isArray(data.serviceReceipts)) {
         data.serviceReceipts = [];
+      }
+      if (!data.payments || !Array.isArray(data.payments)) {
+        data.payments = INITIAL_DATA.payments;
+      }
+      if (!data.notifications || !Array.isArray(data.notifications)) {
+        data.notifications = INITIAL_DATA.notifications;
       }
       return data;
     }
@@ -1556,6 +1636,385 @@ app.delete(['/documents/:id', '/api/documents/:id'], (req, res) => {
   db.documents.splice(index, 1);
   saveDb(db);
   res.status(204).end();
+});
+
+// -------------------------------------------------------------
+// NOTIFICATIONS ROUTES
+// -------------------------------------------------------------
+app.get(['/notifications', '/api/notifications'], (req, res) => {
+  const { userId } = req.query || {};
+  let list = db.notifications || [];
+  if (userId) {
+    list = list.filter((n) => n.userId === userId);
+  }
+  list = [...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json(list);
+});
+
+app.get(['/notifications/unread/:userId', '/api/notifications/unread/:userId'], (req, res) => {
+  const { userId } = req.params;
+  const list = (db.notifications || [])
+    .filter((n) => n.userId === userId && !n.readAt)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json(list);
+});
+
+app.get(['/notifications/:id', '/api/notifications/:id'], (req, res) => {
+  const notif = (db.notifications || []).find((n) => n.id === req.params.id);
+  if (!notif) return res.status(404).json({ message: 'Notificação não encontrada.' });
+  res.json(notif);
+});
+
+app.patch(['/notifications/:id/read', '/api/notifications/:id/read'], (req, res) => {
+  const notif = (db.notifications || []).find((n) => n.id === req.params.id);
+  if (!notif) return res.status(404).json({ message: 'Notificação não encontrada.' });
+  notif.readAt = new Date().toISOString();
+  notif.status = 'READ';
+  notif.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json(notif);
+});
+
+app.patch(['/notifications/read-all/:userId', '/api/notifications/read-all/:userId'], (req, res) => {
+  const { userId } = req.params;
+  let count = 0;
+  (db.notifications || []).forEach((n) => {
+    if (n.userId === userId && !n.readAt) {
+      n.readAt = new Date().toISOString();
+      n.status = 'READ';
+      n.updatedAt = new Date().toISOString();
+      count++;
+    }
+  });
+  saveDb(db);
+  res.json({ count });
+});
+
+app.post(['/notifications', '/api/notifications'], (req, res) => {
+  const { userId, type = 'SYSTEM', channel = 'SYSTEM', title, message, studentId } = req.body || {};
+  const newNotif = {
+    id: generateId('notif'),
+    userId,
+    type,
+    channel,
+    title: title || 'Notificação',
+    message: message || '',
+    studentId: studentId || null,
+    status: 'PENDING',
+    readAt: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  if (!db.notifications) db.notifications = [];
+  db.notifications.push(newNotif);
+  saveDb(db);
+  res.status(201).json(newNotif);
+});
+
+app.patch(['/notifications/:id', '/api/notifications/:id'], (req, res) => {
+  const notif = (db.notifications || []).find((n) => n.id === req.params.id);
+  if (!notif) return res.status(404).json({ message: 'Notificação não encontrada.' });
+  const b = req.body || {};
+  if (b.status !== undefined) notif.status = b.status;
+  notif.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json(notif);
+});
+
+// -------------------------------------------------------------
+// PAYMENTS ROUTES
+// -------------------------------------------------------------
+function enrichPayment(payment) {
+  const student = (db.students || []).find((s) => s.id === payment.studentId);
+  const enrollment = (db.enrollments || []).find((e) => e.id === payment.enrollmentId);
+  let modality = null;
+  let cls = null;
+  if (enrollment) {
+    modality = (db.modalities || []).find((m) => m.id === enrollment.modalityId);
+    if (enrollment.classId) {
+      cls = (db.classes || []).find((c) => c.id === enrollment.classId);
+    }
+  }
+  return {
+    ...payment,
+    student: student ? { id: student.id, name: student.name, phone: student.phone, cpf: student.cpf, type: student.type } : null,
+    enrollment: enrollment ? {
+      ...enrollment,
+      modality: modality ? { id: modality.id, name: modality.name, monthlyPrice: modality.monthlyPrice } : null,
+      class: cls ? { id: cls.id, name: cls.name } : null,
+    } : null,
+  };
+}
+
+app.get(['/payments', '/api/payments'], (req, res) => {
+  const { studentId, enrollmentId, status, referenceMonth, referenceYear } = req.query || {};
+  let list = db.payments || [];
+  if (studentId) list = list.filter((p) => p.studentId === studentId);
+  if (enrollmentId) list = list.filter((p) => p.enrollmentId === enrollmentId);
+  if (status) list = list.filter((p) => p.status === status);
+  if (referenceMonth !== undefined) list = list.filter((p) => p.referenceMonth === Number(referenceMonth));
+  if (referenceYear !== undefined) list = list.filter((p) => p.referenceYear === Number(referenceYear));
+
+  list = [...list].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+  res.json(list.map(enrichPayment));
+});
+
+app.get(['/payments/overdue', '/api/payments/overdue'], (req, res) => {
+  const list = (db.payments || []).filter((p) => p.status === 'OVERDUE');
+  res.json(list.map(enrichPayment));
+});
+
+app.get(['/payments/student/:studentId/monthly-summary', '/api/payments/student/:studentId/monthly-summary'], (req, res) => {
+  const { studentId } = req.params;
+  const { referenceMonth, referenceYear } = req.query;
+  const m = Number(referenceMonth);
+  const y = Number(referenceYear);
+
+  const payments = (db.payments || []).filter(
+    (p) => p.studentId === studentId && p.referenceMonth === m && p.referenceYear === y
+  );
+
+  const total = payments.reduce((acc, p) => acc + Number(p.finalAmount || 0), 0);
+  const paid = payments.filter((p) => p.status === 'PAID').reduce((acc, p) => acc + Number(p.finalAmount || 0), 0);
+  const pending = payments.filter((p) => p.status === 'PENDING').reduce((acc, p) => acc + Number(p.finalAmount || 0), 0);
+  const overdue = payments.filter((p) => p.status === 'OVERDUE').reduce((acc, p) => acc + Number(p.finalAmount || 0), 0);
+
+  res.json({
+    studentId,
+    referenceMonth: m,
+    referenceYear: y,
+    payments: payments.map(enrichPayment),
+    total,
+    paid,
+    pending,
+    overdue,
+  });
+});
+
+app.get(['/payments/:id', '/api/payments/:id'], (req, res) => {
+  const payment = (db.payments || []).find((p) => p.id === req.params.id);
+  if (!payment) return res.status(404).json({ message: 'Pagamento não encontrado.' });
+  res.json(enrichPayment(payment));
+});
+
+app.post(['/payments/student/:studentId/monthly', '/api/payments/student/:studentId/monthly'], (req, res) => {
+  const { studentId } = req.params;
+  const { referenceMonth, referenceYear, dueDate } = req.body || {};
+
+  const student = (db.students || []).find((s) => s.id === studentId);
+  if (!student) return res.status(404).json({ message: 'Aluno não encontrado.' });
+
+  const activeEnrollments = (db.enrollments || []).filter(
+    (e) => e.studentId === studentId && e.status === 'ACTIVE'
+  );
+
+  if (activeEnrollments.length === 0) {
+    return res.status(400).json({ message: 'O aluno não possui matrículas ativas.' });
+  }
+
+  if (!db.payments) db.payments = [];
+
+  const createdPayments = [];
+
+  for (const enr of activeEnrollments) {
+    const existing = db.payments.find(
+      (p) => p.enrollmentId === enr.id && p.referenceMonth === Number(referenceMonth) && p.referenceYear === Number(referenceYear)
+    );
+    if (existing) {
+      createdPayments.push(existing);
+      continue;
+    }
+
+    const modality = (db.modalities || []).find((m) => m.id === enr.modalityId);
+    const contractedPrice = Number(enr.contractedPrice || modality?.monthlyPrice || 0);
+    const discountAmount = Number(enr.discountAmount || 0);
+    const finalAmount = Number(enr.finalPrice || (contractedPrice - discountAmount));
+
+    const newPayment = {
+      id: generateId('pay'),
+      studentId: student.id,
+      enrollmentId: enr.id,
+      referenceMonth: Number(referenceMonth),
+      referenceYear: Number(referenceYear),
+      dueDate: dueDate ? new Date(dueDate).toISOString() : new Date().toISOString(),
+      amount: contractedPrice,
+      discountAmount,
+      finalAmount,
+      method: null,
+      status: 'PENDING',
+      paidAt: null,
+      transactionId: null,
+      receiptGenerated: false,
+      observation: `Mensalidade de ${modality?.name || 'Modalidade'}.`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    db.payments.push(newPayment);
+    createdPayments.push(newPayment);
+  }
+
+  saveDb(db);
+
+  const totalAmount = createdPayments.reduce((acc, p) => acc + Number(p.finalAmount || 0), 0);
+
+  res.status(201).json({
+    studentId: student.id,
+    studentName: student.name,
+    referenceMonth: Number(referenceMonth),
+    referenceYear: Number(referenceYear),
+    payments: createdPayments.map(enrichPayment),
+    totalAmount,
+  });
+});
+
+app.post(['/payments', '/api/payments'], (req, res) => {
+  const { studentId, enrollmentId, referenceMonth, referenceYear, dueDate, observation } = req.body || {};
+  if (!enrollmentId) return res.status(400).json({ message: 'A matrícula é obrigatória para criar uma mensalidade.' });
+
+  const enrollment = (db.enrollments || []).find((e) => e.id === enrollmentId);
+  if (!enrollment) return res.status(404).json({ message: 'Matrícula não encontrada.' });
+  if (enrollment.studentId !== studentId) return res.status(400).json({ message: 'A matrícula informada não pertence ao aluno.' });
+
+  const existing = (db.payments || []).find(
+    (p) => p.enrollmentId === enrollmentId && p.referenceMonth === Number(referenceMonth) && p.referenceYear === Number(referenceYear)
+  );
+  if (existing) {
+    return res.status(400).json({ message: 'Já existe uma mensalidade para esta matrícula neste mês.' });
+  }
+
+  const modality = (db.modalities || []).find((m) => m.id === enrollment.modalityId);
+  const contractedPrice = Number(enrollment.contractedPrice || modality?.monthlyPrice || 0);
+  const discountAmount = Number(enrollment.discountAmount || 0);
+  const finalAmount = Number(enrollment.finalPrice || (contractedPrice - discountAmount));
+
+  const newPayment = {
+    id: generateId('pay'),
+    studentId,
+    enrollmentId,
+    referenceMonth: Number(referenceMonth),
+    referenceYear: Number(referenceYear),
+    dueDate: dueDate ? new Date(dueDate).toISOString() : new Date().toISOString(),
+    amount: contractedPrice,
+    discountAmount,
+    finalAmount,
+    method: null,
+    status: 'PENDING',
+    paidAt: null,
+    transactionId: null,
+    receiptGenerated: false,
+    observation: observation || `Mensalidade de ${modality?.name || 'Modalidade'}.`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (!db.payments) db.payments = [];
+  db.payments.push(newPayment);
+  saveDb(db);
+  res.status(201).json(enrichPayment(newPayment));
+});
+
+app.patch(['/payments/:id/pay', '/api/payments/:id/pay'], (req, res) => {
+  const payment = (db.payments || []).find((p) => p.id === req.params.id);
+  if (!payment) return res.status(404).json({ message: 'Pagamento não encontrado.' });
+  if (payment.status === 'PAID') return res.json(enrichPayment(payment));
+
+  const { method, transactionId } = req.body || {};
+  if (method === 'CASH' && transactionId) {
+    return res.status(400).json({ message: 'Pagamento em dinheiro não possui transactionId.' });
+  }
+
+  payment.status = 'PAID';
+  payment.method = method || 'CASH';
+  payment.transactionId = transactionId || null;
+  payment.paidAt = new Date().toISOString();
+  payment.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json(enrichPayment(payment));
+});
+
+app.patch(['/payments/:id/confirm-online', '/api/payments/:id/confirm-online'], (req, res) => {
+  const payment = (db.payments || []).find((p) => p.id === req.params.id);
+  if (!payment) return res.status(404).json({ message: 'Pagamento não encontrado.' });
+
+  const { method, transactionId } = req.body || {};
+  if (method !== 'PIX' && method !== 'CARD') {
+    return res.status(400).json({ message: 'Confirmação online apenas para PIX ou Cartão.' });
+  }
+
+  payment.status = 'PAID';
+  payment.method = method;
+  payment.transactionId = transactionId;
+  payment.paidAt = new Date().toISOString();
+  payment.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json(enrichPayment(payment));
+});
+
+app.patch(['/payments/overdue/update', '/api/payments/overdue/update'], (req, res) => {
+  const now = new Date();
+  let updated = 0;
+  (db.payments || []).forEach((p) => {
+    if (p.status === 'PENDING' && new Date(p.dueDate) < now) {
+      p.status = 'OVERDUE';
+      p.updatedAt = new Date().toISOString();
+      updated++;
+    }
+  });
+  saveDb(db);
+  res.json({ updated });
+});
+
+app.post(['/payments/check-overdue', '/api/payments/check-overdue'], (req, res) => {
+  const now = new Date();
+  let updatedPayments = 0;
+  let notificationsCreated = 0;
+
+  if (!db.notifications) db.notifications = [];
+
+  (db.payments || []).forEach((p) => {
+    if (p.status === 'PENDING' && new Date(p.dueDate) < now) {
+      p.status = 'OVERDUE';
+      p.updatedAt = new Date().toISOString();
+      updatedPayments++;
+
+      const student = (db.students || []).find((s) => s.id === p.studentId);
+      const studentName = student?.name || 'Aluno';
+
+      const alreadyHas = db.notifications.find(
+        (n) => n.studentId === p.studentId && n.type === 'PAYMENT_OVERDUE' && !n.readAt
+      );
+
+      if (!alreadyHas) {
+        db.notifications.push({
+          id: generateId('notif'),
+          userId: 'usr-1',
+          studentId: p.studentId,
+          type: 'PAYMENT_OVERDUE',
+          channel: 'SYSTEM',
+          title: 'Aluno inadimplente',
+          message: `${studentName} possui mensalidade em atraso. É necessário verificar a situação financeira.`,
+          status: 'PENDING',
+          readAt: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        notificationsCreated++;
+      }
+    }
+  });
+
+  saveDb(db);
+  res.json({ updatedPayments, notificationsCreated });
+});
+
+app.patch(['/payments/:id/cancel', '/api/payments/:id/cancel'], (req, res) => {
+  const payment = (db.payments || []).find((p) => p.id === req.params.id);
+  if (!payment) return res.status(404).json({ message: 'Pagamento não encontrado.' });
+  payment.status = 'CANCELLED';
+  payment.updatedAt = new Date().toISOString();
+  saveDb(db);
+  res.json(enrichPayment(payment));
 });
 
 // -------------------------------------------------------------

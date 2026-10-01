@@ -19,6 +19,9 @@ import { NewEnrollmentPage } from '../pages/enrollments/NewEnrollmentPage';
 import { EnrollmentDetailPage } from '../pages/enrollments/EnrollmentDetailPage';
 import { ReceiptsPage } from '../pages/documents/ReceiptsPage';
 import { CertificatesPage } from '../pages/documents/CertificatesPage';
+import FinancePage from '../pages/finance/FinancePage';
+import NotificationsPage from '../pages/notifications/NotificationsPage';
+import { StudentDetailPage } from '../pages/students/StudentDetailPage';
 
 function ProtectedRoutes() {
   const { isAuthenticated } = useAuth();
@@ -70,6 +73,18 @@ export default function AppRoutes() {
             element={<CertificatesPage />} />
           <Route path="/documents"
             element={<ReceiptsPage />} />
+          <Route path="/finance"
+            element={<FinancePage />} />
+          <Route path="/payments"
+            element={<FinancePage />} />
+          <Route path="/overdue"
+            element={<FinancePage defaultFilter="OVERDUE" />} />
+          <Route path="/notifications"
+            element={<NotificationsPage />} />
+          <Route path="/students/:id"
+            element={<StudentDetailPage />} />
+          <Route path="/students/:id/finance"
+            element={<StudentDetailPage />} />
             <Route
             path="/settings"
             element={<SettingsPage />}

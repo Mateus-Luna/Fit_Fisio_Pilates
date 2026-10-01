@@ -18,7 +18,9 @@ import {
   Activity,
   AlertCircle,
   AlertTriangle,
+  DollarSign,
 } from '../../components/common/Icons';
+import { StudentFinanceDrawer } from '../../components/finance/StudentFinanceDrawer';
 
 import {
   studentsService,
@@ -116,6 +118,7 @@ export default function StudentsPage() {
   // Modal de formulário
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [financialStudent, setFinancialStudent] = useState<Student | null>(null);
 
   // Campos do formulário
   const [name, setName] = useState('');
@@ -1322,6 +1325,17 @@ export default function StudentsPage() {
                         <span>{hasNoActiveEnrollment ? 'Matricular Agora' : '+ Nova Matrícula'}</span>
                       </Link>
 
+                      {/* Seção Financeiro */}
+                      <button
+                        type="button"
+                        onClick={() => setFinancialStudent(student)}
+                        className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl border border-teal-200 bg-teal-50 text-teal-800 text-xs font-semibold hover:bg-teal-100 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-600"
+                        title={`Acessar financeiro e mensalidades de ${student.name}`}
+                      >
+                        <DollarSign className="w-3.5 h-3.5 text-teal-600" aria-hidden="true" />
+                        <span>Financeiro</span>
+                      </button>
+
                       {/* Editar Aluno */}
                       <button
                         type="button"
@@ -1375,6 +1389,13 @@ export default function StudentsPage() {
           </div>
         )}
       </div>
+      {/* Drawer Financeiro do Aluno */}
+      <StudentFinanceDrawer
+        student={financialStudent}
+        isOpen={!!financialStudent}
+        onClose={() => setFinancialStudent(null)}
+        onStudentUpdated={loadData}
+      />
     </div>
   );
 }

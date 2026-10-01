@@ -378,5 +378,79 @@
       "createdAt": "2026-09-14T21:15:04.562Z",
       "updatedAt": "2026-09-14T21:15:15.759Z"
     }
+  ],
+  "payments": [
+    {
+      "id": "pay-1",
+      "studentId": "std-1",
+      "enrollmentId": "enr-1",
+      "referenceMonth": 10,
+      "referenceYear": 2026,
+      "dueDate": "2026-10-10T00:00:00.000Z",
+      "amount": 220,
+      "discountAmount": 22,
+      "finalAmount": 198,
+      "method": null,
+      "status": "PENDING",
+      "paidAt": null,
+      "transactionId": null,
+      "receiptGenerated": false,
+      "observation": "Mensalidade de Pilates - Outubro/2026",
+      "createdAt": "2026-10-01T00:00:00.000Z",
+      "updatedAt": "2026-10-01T00:00:00.000Z"
+    },
+    {
+      "id": "pay-2",
+      "studentId": "std-1",
+      "enrollmentId": "enr-1",
+      "referenceMonth": 9,
+      "referenceYear": 2026,
+      "dueDate": "2026-09-10T00:00:00.000Z",
+      "amount": 220,
+      "discountAmount": 22,
+      "finalAmount": 198,
+      "method": "PIX",
+      "status": "PAID",
+      "paidAt": "2026-09-08T14:30:00.000Z",
+      "transactionId": "E2E-987123654",
+      "receiptGenerated": true,
+      "observation": "Mensalidade de Pilates - Setembro/2026",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "updatedAt": "2026-09-08T14:30:00.000Z"
+    },
+    {
+      "id": "pay-3",
+      "studentId": "std-3",
+      "enrollmentId": "enr-2",
+      "referenceMonth": 10,
+      "referenceYear": 2026,
+      "dueDate": "2026-10-10T00:00:00.000Z",
+      "amount": 190,
+      "discountAmount": 0,
+      "finalAmount": 190,
+      "method": null,
+      "status": "PENDING",
+      "paidAt": null,
+      "transactionId": null,
+      "receiptGenerated": false,
+      "observation": "Mensalidade de Natação Criança - Outubro/2026",
+      "createdAt": "2026-10-01T00:00:00.000Z",
+      "updatedAt": "2026-10-01T00:00:00.000Z"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "notif-1",
+      "userId": "usr-1",
+      "studentId": "std-1",
+      "type": "SYSTEM",
+      "channel": "SYSTEM",
+      "title": "Sistema Financeiro Ativo",
+      "message": "O módulo financeiro do FitFisio está pronto para gerenciar cobranças em PIX, Cartão e Dinheiro.",
+      "status": "PENDING",
+      "readAt": null,
+      "createdAt": "2026-10-01T00:00:00.000Z",
+      "updatedAt": "2026-10-01T00:00:00.000Z"
+    }
   ]
 }
