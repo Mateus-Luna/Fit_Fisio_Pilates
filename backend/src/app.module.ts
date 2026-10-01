@@ -12,12 +12,15 @@ import { DiscountsModule } from './discounts/discounts.module';
 import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { ClassesModule } from './classes/classes.module';
 import { DocumentsModule } from './documents/documents.module';
+import { PaymentsModule } from './payments/payments.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [ConfigModule.forRoot({
       isGlobal: true,
-    }), PrismaModule, AuthModule, FamiliesModule, StudentsModule, ModalitiesModule, SettingsModule, DiscountsModule,
-  EnrollmentsModule, ClassesModule, DocumentsModule],
+    }), ScheduleModule.forRoot(), PrismaModule, AuthModule, FamiliesModule, StudentsModule, ModalitiesModule, SettingsModule, DiscountsModule,
+  EnrollmentsModule, ClassesModule, DocumentsModule, PaymentsModule, NotificationsModule],
   controllers: [AppController],
   providers: [AppService],
 })
