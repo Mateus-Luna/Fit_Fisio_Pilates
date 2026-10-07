@@ -28,6 +28,7 @@ interface ModalityItemDraft {
   classId: string;
   startDate: string;
   discountPercentage: number;
+  billingFrequency?: 'MONTHLY' | 'BIWEEKLY';
   observation: string;
 }
 
@@ -291,6 +292,7 @@ export function NewEnrollmentPage() {
           classId: draft.classId || null,
           startDate: draft.startDate,
           discountPercentage: Number(draft.discountPercentage) || 0,
+          billingFrequency: draft.billingFrequency || 'MONTHLY',
           observation: draft.observation || null,
         });
       }
@@ -807,6 +809,58 @@ export function NewEnrollmentPage() {
                         R$ {calc.finalPrice.toFixed(2)}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Forma de cobrança (Mensal ou Quinzenal) */}
+                  <div className="pt-2.5 border-t border-slate-200/60 bg-white p-3 rounded-lg border">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">
+                      Forma de cobrança
+                    </label>
+                    <div className="flex flex-wrap items-center gap-6 text-xs">
+                      <label className="inline-flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`billingFrequency-${draft.tempId}`}
+                          value="MONTHLY"
+                          checked={draft.billingFrequency !== 'BIWEEKLY'}
+                          onChange={() => updateDraftItem(draft.tempId, 'billingFrequency', 'MONTHLY')}
+                          className="text-teal-600 focus:ring-teal-500 w-4 h-4 cursor-pointer"
+                        />
+                        <span className="font-semibold text-slate-800">
+                          Mensal <span className="font-normal text-slate-500">(1 cobrança por mês)</span>
+                        </span>
+                      </label>
+
+                      <label className="inline-flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`billingFrequency-${draft.tempId}`}
+                          value="BIWEEKLY"
+                          checked={draft.billingFrequency === 'BIWEEKLY'}
+                          onChange={() => updateDraftItem(draft.tempId, 'billingFrequency', 'BIWEEKLY')}
+                          className="text-teal-600 focus:ring-teal-500 w-4 h-4 cursor-pointer"
+                        />
+                        <span className="font-semibold text-slate-800">
+                          Quinzenal <span className="font-normal text-slate-500">(2 cobranças por mês)</span>
+                        </span>
+                      </label>
+                    </div>
+
+                    {draft.billingFrequency === 'BIWEEKLY' && (
+                      <div className="mt-2.5 text-xs text-blue-800 bg-blue-50/80 p-2.5 rounded-lg border border-blue-200 flex items-start space-x-2">
+                        <span className="font-bold text-blue-600 text-sm leading-none mt-0.5">ℹ</span>
+                        <div>
+                          <p className="font-semibold">Divisão quinzenal automática da mensalidade:</p>
+                          <p className="mt-0.5 text-[11px] text-blue-700">
+                            • 1ª quinzena: <strong>R$ {(Math.ceil(Math.round(calc.finalPrice * 100) / 2) / 100).toFixed(2)}</strong>
+                            <br />
+                            • 2ª quinzena: <strong>R$ {(Math.floor(Math.round(calc.finalPrice * 100) / 2) / 100).toFixed(2)}</strong>
+                            <br />
+                            Total mensal: <strong>R$ {calc.finalPrice.toFixed(2)}</strong> (sem diferença de centavos).
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div>

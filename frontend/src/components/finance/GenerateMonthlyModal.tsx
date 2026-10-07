@@ -225,9 +225,12 @@ export function GenerateMonthlyModal({
                   .map((e) => (
                     <span
                       key={e.id}
-                      className="px-2 py-0.5 bg-white border border-slate-200 rounded-md text-[11px] font-medium text-slate-800"
+                      className="px-2 py-0.5 bg-white border border-slate-200 rounded-md text-[11px] font-medium text-slate-800 flex items-center space-x-1"
                     >
-                      {e.modality?.name || 'Modalidade'}
+                      <span>{e.modality?.name || 'Modalidade'}</span>
+                      <span className="text-[10px] text-teal-700 font-bold bg-teal-50 px-1 rounded">
+                        {e.billingFrequency === 'BIWEEKLY' ? 'Quinzenal (2x)' : 'Mensal (1x)'}
+                      </span>
                     </span>
                   ))}
               </div>

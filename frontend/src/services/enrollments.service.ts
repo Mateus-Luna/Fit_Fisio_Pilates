@@ -12,12 +12,15 @@ export type EnrollmentStatus =
   | 'CANCELLED'
   | 'COMPLETED';
 
+export type BillingFrequency = 'MONTHLY' | 'BIWEEKLY';
+
 export interface Enrollment {
   id: string;
   studentId: string;
   modalityId: string;
   classId?: string | null;
   status: EnrollmentStatus;
+  billingFrequency?: BillingFrequency;
   startDate: string;
   endDate?: string | null;
   approvedAt?: string | null;
@@ -38,6 +41,7 @@ export interface CreateEnrollmentData {
   studentId: string;
   modalityId: string;
   classId?: string | null;
+  billingFrequency?: BillingFrequency;
   startDate?: string;
   endDate?: string | null;
   discountPercentage?: number;
@@ -47,6 +51,7 @@ export interface CreateEnrollmentData {
 export interface UpdateEnrollmentData {
   modalityId?: string;
   classId?: string | null;
+  billingFrequency?: BillingFrequency;
   startDate?: string;
   endDate?: string | null;
   discountPercentage?: number;

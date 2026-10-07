@@ -418,8 +418,21 @@ export function StudentFinanceDrawer({
                               </span>
                             )}
                           </td>
-                          <td className="py-3 px-3 text-slate-700 font-medium">
-                            {monthStr}/{p.referenceYear}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <div className="font-semibold text-slate-900">{monthStr}/{p.referenceYear}</div>
+                            {p.period === 'FIRST_FORTNIGHT' ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 mt-0.5">
+                                1ª quinzena
+                              </span>
+                            ) : p.period === 'SECOND_FORTNIGHT' ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 mt-0.5">
+                                2ª quinzena
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-slate-500 bg-slate-100 mt-0.5">
+                                Mensalidade
+                              </span>
+                            )}
                           </td>
                           <td className="py-3 px-3 text-slate-500">
                             {formatCurrency(p.amount)}

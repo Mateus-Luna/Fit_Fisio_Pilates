@@ -3,6 +3,13 @@ import type { Student } from './students.service';
 
 export type PaymentStatus = 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED' | 'REFUNDED';
 export type PaymentMethod = 'PIX' | 'CARD' | 'CASH';
+export type PaymentPeriod = 'MONTHLY' | 'FIRST_FORTNIGHT' | 'SECOND_FORTNIGHT';
+
+export function getPaymentPeriodLabel(period?: PaymentPeriod | null): string {
+  if (period === 'FIRST_FORTNIGHT') return '1ª quinzena';
+  if (period === 'SECOND_FORTNIGHT') return '2ª quinzena';
+  return 'Mensalidade';
+}
 
 export interface PaymentEnrollment {
   id: string;
@@ -10,6 +17,7 @@ export interface PaymentEnrollment {
   modalityId?: string;
   classId?: string | null;
   status?: string;
+  billingFrequency?: 'MONTHLY' | 'BIWEEKLY';
   contractedPrice?: number;
   discountPercentage?: number;
   discountAmount?: number;
@@ -33,6 +41,7 @@ export interface Payment {
   enrollmentId: string;
   referenceMonth: number;
   referenceYear: number;
+  period?: PaymentPeriod;
   dueDate: string;
   amount: number | string;
   discountAmount: number | string;

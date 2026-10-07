@@ -53,6 +53,7 @@ interface DraftEnrollment {
   classId: string;
   startDate: string;
   discountPercentage: number;
+  billingFrequency?: 'MONTHLY' | 'BIWEEKLY';
 }
 
 function calculateAge(birthDate: string): number {
@@ -328,6 +329,7 @@ export default function StudentsPage() {
             classId: draft.classId || null,
             startDate: draft.startDate,
             discountPercentage: Number(draft.discountPercentage) || 0,
+            billingFrequency: draft.billingFrequency || 'MONTHLY',
           });
         }
 
@@ -1022,6 +1024,35 @@ export default function StudentsPage() {
                                   }
                                   className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-600"
                                 />
+                              </div>
+                            </div>
+
+                            {/* Forma de cobrança: Mensal ou Quinzenal */}
+                            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                              <span className="text-[11px] font-semibold text-slate-700">Forma de cobrança:</span>
+                              <div className="flex items-center space-x-3 text-xs">
+                                <label className="inline-flex items-center space-x-1 cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name={`draftBilling-${draft.tempId}`}
+                                    value="MONTHLY"
+                                    checked={draft.billingFrequency !== 'BIWEEKLY'}
+                                    onChange={() => updateDraftEnrollment(draft.tempId, 'billingFrequency', 'MONTHLY')}
+                                    className="text-teal-600 focus:ring-teal-500 w-3.5 h-3.5"
+                                  />
+                                  <span className="text-slate-800 font-medium">Mensal</span>
+                                </label>
+                                <label className="inline-flex items-center space-x-1 cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name={`draftBilling-${draft.tempId}`}
+                                    value="BIWEEKLY"
+                                    checked={draft.billingFrequency === 'BIWEEKLY'}
+                                    onChange={() => updateDraftEnrollment(draft.tempId, 'billingFrequency', 'BIWEEKLY')}
+                                    className="text-teal-600 focus:ring-teal-500 w-3.5 h-3.5"
+                                  />
+                                  <span className="text-slate-800 font-medium">Quinzenal</span>
+                                </label>
                               </div>
                             </div>
                           </div>

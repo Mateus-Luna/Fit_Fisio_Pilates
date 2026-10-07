@@ -1,11 +1,13 @@
 import {
   IsDateString,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
   Max,
   Min,
 } from 'class-validator';
+import { PaymentPeriod } from 'generated/prisma/enums';
 
 export class CreatePaymentDto {
   @IsString()
@@ -22,6 +24,10 @@ export class CreatePaymentDto {
 
   @IsInt()
   referenceYear!: number;
+
+  @IsOptional()
+  @IsEnum(PaymentPeriod)
+  period?: PaymentPeriod;
 
   @IsDateString()
   dueDate!: string;

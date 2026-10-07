@@ -13,6 +13,7 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import {
   PaymentMethod,
+  PaymentPeriod,
   PaymentStatus,
 } from 'generated/prisma/enums';
 import { PaymentOverdueService } from './payment-overdue.service';
@@ -57,6 +58,7 @@ export class PaymentsController {
     @Query('studentId') studentId?: string,
     @Query('enrollmentId') enrollmentId?: string,
     @Query('status') status?: PaymentStatus,
+    @Query('period') period?: PaymentPeriod,
     @Query('referenceMonth')
     referenceMonth?: string,
     @Query('referenceYear')
@@ -66,6 +68,7 @@ export class PaymentsController {
       studentId,
       enrollmentId,
       status,
+      period,
       referenceMonth: referenceMonth
         ? Number(referenceMonth)
         : undefined,

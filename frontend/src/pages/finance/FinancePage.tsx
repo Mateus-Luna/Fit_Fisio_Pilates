@@ -593,9 +593,24 @@ export default function FinancePage({ defaultFilter }: { defaultFilter?: 'OVERDU
                         </span>
                       </td>
 
-                      {/* Mês de Referência */}
-                      <td className="py-3.5 px-3 text-slate-700 whitespace-nowrap">
-                        {monthName} / {p.referenceYear}
+                      {/* Mês de Referência e Período */}
+                      <td className="py-3.5 px-3 whitespace-nowrap">
+                        <div className="font-semibold text-slate-900">
+                          {monthName}/{p.referenceYear}
+                        </div>
+                        {p.period === 'FIRST_FORTNIGHT' ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 mt-0.5">
+                            1ª quinzena
+                          </span>
+                        ) : p.period === 'SECOND_FORTNIGHT' ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 mt-0.5">
+                            2ª quinzena
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium text-slate-600 bg-slate-100 mt-0.5">
+                            Mensalidade
+                          </span>
+                        )}
                       </td>
 
                       {/* Valor Original */}

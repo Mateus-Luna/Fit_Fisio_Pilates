@@ -151,6 +151,19 @@ export function PaymentModal({
                 <strong className="text-slate-800">
                   {monthName} / {payment.referenceYear}
                 </strong>
+                {payment.period === 'FIRST_FORTNIGHT' ? (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                    1ª quinzena
+                  </span>
+                ) : payment.period === 'SECOND_FORTNIGHT' ? (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                    2ª quinzena
+                  </span>
+                ) : (
+                  <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium text-slate-500 bg-slate-100">
+                    Mensalidade
+                  </span>
+                )}
               </div>
               <div>
                 <span className="text-slate-400">Vencimento:</span>{' '}

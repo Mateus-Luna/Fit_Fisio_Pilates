@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { EnrollmentsController } from './enrollments.controller';
 import { EnrollmentsService } from './enrollments.service';
+import { EnrollmentDocumentService } from './enrollment-document.service';
 import {
   beforeEach,
   describe,
@@ -24,6 +25,13 @@ describe('EnrollmentsController', () => {
     cancel: jest.fn<(...args: any[]) => any>(),
   };
 
+  const documentService = {
+    generateReceipt: jest.fn<(...args: any[]) => any>(),
+    generateHomologatedCertificate: jest.fn<(...args: any[]) => any>(),
+    getReceiptPath: jest.fn<(...args: any[]) => any>(),
+    getCertificatePath: jest.fn<(...args: any[]) => any>(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [EnrollmentsController],
@@ -31,6 +39,10 @@ describe('EnrollmentsController', () => {
         {
           provide: EnrollmentsService,
           useValue: service,
+        },
+        {
+          provide: EnrollmentDocumentService,
+          useValue: documentService,
         },
       ],
     }).compile();

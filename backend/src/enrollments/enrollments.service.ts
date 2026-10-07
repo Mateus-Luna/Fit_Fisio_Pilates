@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { EnrollmentStatus } from '../../generated/prisma/enums';
+import { EnrollmentStatus, BillingFrequency } from '../../generated/prisma/enums';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
 import { Decimal } from 'decimal.js';
@@ -29,6 +29,7 @@ export class EnrollmentsService {
       discountPercentage = 0,
       observation,
       classId,
+      billingFrequency = BillingFrequency.MONTHLY,
     } = createEnrollmentDto;
 
     const student = await this.prisma.student.findUnique({
@@ -122,6 +123,9 @@ const discountCalculation  =
 
         status: EnrollmentStatus.ACTIVE,
         approvedAt: new Date(),
+
+        billingFrequency:
+          billingFrequency ?? BillingFrequency.MONTHLY,
 
         contractedPrice:
           discountCalculation.contractedPrice.toString(),
@@ -235,6 +239,7 @@ const discountCalculation  =
         discountPercentage,
         observation,
         classId,
+        billingFrequency,
       } = updateEnrollmentDto;
 
       let contractedPrice = new Decimal(
@@ -428,6 +433,10 @@ const discountCalculation  =
             modalityId !== undefined
               ? modalityId
               : undefined,
+
+          ...(billingFrequency !== undefined && {
+            billingFrequency,
+          }),
 
           startDate: startDate
             ? new Date(startDate)

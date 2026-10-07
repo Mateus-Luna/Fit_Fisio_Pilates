@@ -620,7 +620,40 @@ app.patch(['/modalities/:id', '/api/modalities/:id'], (req, res) => {
   const mod = db.modalities[index];
   if (body.name !== undefined) mod.name = body.name.trim();
   if (body.description !== undefined) mod.description = body.description;
-  if (body.monthlyPrice !== undefined) mod.monthlyPrice = Number(body.monthlyPrice);
+  if (body.monthlyPrice !== undefined) {
+    const newPrice = Number(body.monthlyPrice);
+    mod.monthlyPrice = newPrice;
+
+    // Atualizar cobranças PENDENTES de matrículas ativas dessa modalidade
+    // Regra: Pagamentos históricos já pagos (PAID) NUNCA devem ser alterados.
+    // Apenas cobranças ainda não pagas (PENDING) refletem o novo preço da modalidade.
+    const activeEnrollments = (db.enrollments || []).filter(
+      (e) => e.modalityId === mod.id && e.status === 'ACTIVE'
+    );
+    for (const enr of activeEnrollments) {
+      const pct = Math.max(0, Math.min(100, Number(enr.discountPercentage) || 0));
+      const totalDiscountAmount = Math.round((newPrice * (pct / 100)) * 100) / 100;
+      const totalFinalAmount = Math.round((newPrice - totalDiscountAmount) * 100) / 100;
+
+      const pendingPayments = (db.payments || []).filter(
+        (p) => p.enrollmentId === enr.id && p.status === 'PENDING'
+      );
+      for (const p of pendingPayments) {
+        if (p.period === 'FIRST_FORTNIGHT' || p.period === 'SECOND_FORTNIGHT') {
+          const split = splitFortnightAmounts(newPrice, totalFinalAmount);
+          const part = p.period === 'FIRST_FORTNIGHT' ? split.first : split.second;
+          p.amount = part.amount;
+          p.discountAmount = part.discountAmount;
+          p.finalAmount = part.finalAmount;
+        } else {
+          p.amount = newPrice;
+          p.discountAmount = totalDiscountAmount;
+          p.finalAmount = totalFinalAmount;
+        }
+        p.updatedAt = new Date().toISOString();
+      }
+    }
+  }
   if (body.requiresClass !== undefined) mod.requiresClass = Boolean(body.requiresClass);
   if (body.capacity !== undefined) mod.capacity = body.capacity ? Number(body.capacity) : null;
   if (body.active !== undefined) mod.active = Boolean(body.active);
@@ -960,6 +993,7 @@ function enrichEnrollment(e) {
   const serviceReceipt = (db.serviceReceipts || []).find((r) => r.enrollmentId === e.id) || null;
   return {
     ...e,
+    billingFrequency: (e.billingFrequency === 'BIWEEKLY' || e.billingFrequency === 'QUINZENAL') ? 'BIWEEKLY' : 'MONTHLY',
     student,
     modality,
     class: classItem,
@@ -987,7 +1021,7 @@ app.get(['/enrollments/:id', '/api/enrollments/:id'], (req, res) => {
 });
 
 app.post(['/enrollments', '/api/enrollments'], (req, res) => {
-  const { studentId, modalityId, classId, startDate, endDate, discountPercentage = 0, observation } = req.body || {};
+  const { studentId, modalityId, classId, startDate, endDate, discountPercentage = 0, observation, billingFrequency = 'MONTHLY' } = req.body || {};
 
   const student = (db.students || []).find((s) => s.id === studentId);
   if (!student) return res.status(404).json({ message: 'Aluno não encontrado.' });
@@ -1025,6 +1059,7 @@ app.post(['/enrollments', '/api/enrollments'], (req, res) => {
     modalityId,
     classId: classId || null,
     status: 'ACTIVE',
+    billingFrequency: (billingFrequency === 'BIWEEKLY' || billingFrequency === 'QUINZENAL') ? 'BIWEEKLY' : 'MONTHLY',
     startDate: new Date(startDate || Date.now()).toISOString(),
     endDate: endDate ? new Date(endDate).toISOString() : null,
     approvedAt: new Date().toISOString(),
@@ -1081,7 +1116,11 @@ app.patch(['/enrollments/:id', '/api/enrollments/:id'], (req, res) => {
     return res.status(400).json({ message: 'Não é possível editar uma matrícula cancelada ou concluída.' });
   }
 
-  const { modalityId, classId, startDate, endDate, discountPercentage, observation } = req.body || {};
+  const { modalityId, classId, startDate, endDate, discountPercentage, observation, billingFrequency } = req.body || {};
+
+  if (billingFrequency !== undefined) {
+    enrollment.billingFrequency = (billingFrequency === 'BIWEEKLY' || billingFrequency === 'QUINZENAL') ? 'BIWEEKLY' : 'MONTHLY';
+  }
 
   if (modalityId && modalityId !== enrollment.modalityId) {
     const mod = (db.modalities || []).find((m) => m.id === modalityId);
@@ -1721,6 +1760,62 @@ app.patch(['/notifications/:id', '/api/notifications/:id'], (req, res) => {
   res.json(notif);
 });
 
+function splitFortnightAmounts(modalityPrice, finalPrice) {
+  const totalFinalCents = Math.round(finalPrice * 100);
+  const firstFinalCents = Math.ceil(totalFinalCents / 2);
+  const secondFinalCents = totalFinalCents - firstFinalCents;
+
+  const totalAmountCents = Math.round(modalityPrice * 100);
+  const firstAmountCents = Math.ceil(totalAmountCents / 2);
+  const secondAmountCents = totalAmountCents - firstAmountCents;
+
+  const firstAmount = firstAmountCents / 100;
+  const secondAmount = secondAmountCents / 100;
+
+  const firstFinalAmount = firstFinalCents / 100;
+  const secondFinalAmount = secondFinalCents / 100;
+
+  const firstDiscountAmount = Number((firstAmount - firstFinalAmount).toFixed(2));
+  const secondDiscountAmount = Number((secondAmount - secondFinalAmount).toFixed(2));
+
+  return {
+    first: {
+      amount: firstAmount,
+      discountAmount: firstDiscountAmount,
+      finalAmount: firstFinalAmount,
+    },
+    second: {
+      amount: secondAmount,
+      discountAmount: secondDiscountAmount,
+      finalAmount: secondFinalAmount,
+    },
+  };
+}
+
+function calculateFortnightDueDates(dueDateStr, referenceMonth, referenceYear) {
+  const baseDue = new Date(dueDateStr);
+  const year = isNaN(baseDue.getFullYear()) ? referenceYear : baseDue.getFullYear();
+  const month = isNaN(baseDue.getMonth()) ? referenceMonth - 1 : baseDue.getMonth();
+  const day = isNaN(baseDue.getDate()) ? 10 : baseDue.getDate();
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  let firstDue;
+  let secondDue;
+
+  if (day <= 15) {
+    firstDue = new Date(year, month, day);
+    const secondDay = Math.min(day + 15, daysInMonth);
+    secondDue = new Date(year, month, secondDay);
+  } else {
+    const firstDay = Math.max(1, day - 15);
+    firstDue = new Date(year, month, firstDay);
+    secondDue = new Date(year, month, Math.min(day, daysInMonth));
+  }
+
+  return { firstDue, secondDue };
+}
+
 // -------------------------------------------------------------
 // PAYMENTS ROUTES
 // -------------------------------------------------------------
@@ -1737,9 +1832,11 @@ function enrichPayment(payment) {
   }
   return {
     ...payment,
+    period: payment.period || 'MONTHLY',
     student: student ? { id: student.id, name: student.name, phone: student.phone, cpf: student.cpf, type: student.type } : null,
     enrollment: enrollment ? {
       ...enrollment,
+      billingFrequency: (enrollment.billingFrequency === 'BIWEEKLY' || enrollment.billingFrequency === 'QUINZENAL') ? 'BIWEEKLY' : 'MONTHLY',
       modality: modality ? { id: modality.id, name: modality.name, monthlyPrice: modality.monthlyPrice } : null,
       class: cls ? { id: cls.id, name: cls.name } : null,
     } : null,
@@ -1747,11 +1844,12 @@ function enrichPayment(payment) {
 }
 
 app.get(['/payments', '/api/payments'], (req, res) => {
-  const { studentId, enrollmentId, status, referenceMonth, referenceYear } = req.query || {};
+  const { studentId, enrollmentId, status, period, referenceMonth, referenceYear } = req.query || {};
   let list = db.payments || [];
   if (studentId) list = list.filter((p) => p.studentId === studentId);
   if (enrollmentId) list = list.filter((p) => p.enrollmentId === enrollmentId);
   if (status) list = list.filter((p) => p.status === status);
+  if (period) list = list.filter((p) => (p.period || 'MONTHLY') === period);
   if (referenceMonth !== undefined) list = list.filter((p) => p.referenceMonth === Number(referenceMonth));
   if (referenceYear !== undefined) list = list.filter((p) => p.referenceYear === Number(referenceYear));
 
@@ -1817,46 +1915,128 @@ app.post(['/payments/student/:studentId/monthly', '/api/payments/student/:studen
   const createdPayments = [];
 
   for (const enr of activeEnrollments) {
-    const existing = db.payments.find(
-      (p) => p.enrollmentId === enr.id && p.referenceMonth === Number(referenceMonth) && p.referenceYear === Number(referenceYear)
-    );
-    if (existing) {
-      createdPayments.push(existing);
-      continue;
-    }
-
     const modality = (db.modalities || []).find((m) => m.id === enr.modalityId);
-    const contractedPrice = Number(enr.contractedPrice || modality?.monthlyPrice || 0);
-    const discountAmount = Number(enr.discountAmount || 0);
-    const finalAmount = Number(enr.finalPrice || (contractedPrice - discountAmount));
+    // Modalidade é a fonte da verdade do preço atual
+    const modalityPrice = Number(modality?.monthlyPrice !== undefined ? modality.monthlyPrice : (enr.contractedPrice || 0));
+    const pct = Math.max(0, Math.min(100, Number(enr.discountPercentage) || 0));
+    const totalDiscountAmount = Math.round((modalityPrice * (pct / 100)) * 100) / 100;
+    const totalFinalAmount = Math.round((modalityPrice - totalDiscountAmount) * 100) / 100;
 
-    const newPayment = {
-      id: generateId('pay'),
-      studentId: student.id,
-      enrollmentId: enr.id,
-      referenceMonth: Number(referenceMonth),
-      referenceYear: Number(referenceYear),
-      dueDate: dueDate ? new Date(dueDate).toISOString() : new Date().toISOString(),
-      amount: contractedPrice,
-      discountAmount,
-      finalAmount,
-      method: null,
-      status: 'PENDING',
-      paidAt: null,
-      transactionId: null,
-      receiptGenerated: false,
-      observation: `Mensalidade de ${modality?.name || 'Modalidade'}.`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    const isBiweekly = enr.billingFrequency === 'BIWEEKLY' || enr.billingFrequency === 'QUINZENAL';
 
-    db.payments.push(newPayment);
-    createdPayments.push(newPayment);
+    if (isBiweekly) {
+      const split = splitFortnightAmounts(modalityPrice, totalFinalAmount);
+      const { firstDue, secondDue } = calculateFortnightDueDates(dueDate, Number(referenceMonth), Number(referenceYear));
+
+      // 1ª Quinzena
+      const existingFirst = db.payments.find(
+        (p) => p.enrollmentId === enr.id &&
+          p.referenceMonth === Number(referenceMonth) &&
+          p.referenceYear === Number(referenceYear) &&
+          p.period === 'FIRST_FORTNIGHT'
+      );
+      if (existingFirst) {
+        createdPayments.push(existingFirst);
+      } else {
+        const p1 = {
+          id: generateId('pay'),
+          studentId: student.id,
+          enrollmentId: enr.id,
+          referenceMonth: Number(referenceMonth),
+          referenceYear: Number(referenceYear),
+          period: 'FIRST_FORTNIGHT',
+          dueDate: firstDue.toISOString(),
+          amount: split.first.amount,
+          discountAmount: split.first.discountAmount,
+          finalAmount: split.first.finalAmount,
+          method: null,
+          status: 'PENDING',
+          paidAt: null,
+          transactionId: null,
+          receiptGenerated: false,
+          observation: `Mensalidade de ${modality?.name || 'Modalidade'} (1ª quinzena).`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        db.payments.push(p1);
+        createdPayments.push(p1);
+      }
+
+      // 2ª Quinzena
+      const existingSecond = db.payments.find(
+        (p) => p.enrollmentId === enr.id &&
+          p.referenceMonth === Number(referenceMonth) &&
+          p.referenceYear === Number(referenceYear) &&
+          p.period === 'SECOND_FORTNIGHT'
+      );
+      if (existingSecond) {
+        createdPayments.push(existingSecond);
+      } else {
+        const p2 = {
+          id: generateId('pay'),
+          studentId: student.id,
+          enrollmentId: enr.id,
+          referenceMonth: Number(referenceMonth),
+          referenceYear: Number(referenceYear),
+          period: 'SECOND_FORTNIGHT',
+          dueDate: secondDue.toISOString(),
+          amount: split.second.amount,
+          discountAmount: split.second.discountAmount,
+          finalAmount: split.second.finalAmount,
+          method: null,
+          status: 'PENDING',
+          paidAt: null,
+          transactionId: null,
+          receiptGenerated: false,
+          observation: `Mensalidade de ${modality?.name || 'Modalidade'} (2ª quinzena).`,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        db.payments.push(p2);
+        createdPayments.push(p2);
+      }
+    } else {
+      // MENSAL
+      const existing = db.payments.find(
+        (p) => p.enrollmentId === enr.id &&
+          p.referenceMonth === Number(referenceMonth) &&
+          p.referenceYear === Number(referenceYear) &&
+          (p.period === 'MONTHLY' || !p.period)
+      );
+      if (existing) {
+        createdPayments.push(existing);
+        continue;
+      }
+
+      const newPayment = {
+        id: generateId('pay'),
+        studentId: student.id,
+        enrollmentId: enr.id,
+        referenceMonth: Number(referenceMonth),
+        referenceYear: Number(referenceYear),
+        period: 'MONTHLY',
+        dueDate: dueDate ? new Date(dueDate).toISOString() : new Date().toISOString(),
+        amount: modalityPrice,
+        discountAmount: totalDiscountAmount,
+        finalAmount: totalFinalAmount,
+        method: null,
+        status: 'PENDING',
+        paidAt: null,
+        transactionId: null,
+        receiptGenerated: false,
+        observation: `Mensalidade de ${modality?.name || 'Modalidade'}.`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      db.payments.push(newPayment);
+      createdPayments.push(newPayment);
+    }
   }
 
   saveDb(db);
 
-  const totalAmount = createdPayments.reduce((acc, p) => acc + Number(p.finalAmount || 0), 0);
+  const totalAmount = Math.round(createdPayments.reduce((acc, p) => acc + Number(p.finalAmount || 0), 0) * 100) / 100;
 
   res.status(201).json({
     studentId: student.id,
@@ -1869,24 +2049,49 @@ app.post(['/payments/student/:studentId/monthly', '/api/payments/student/:studen
 });
 
 app.post(['/payments', '/api/payments'], (req, res) => {
-  const { studentId, enrollmentId, referenceMonth, referenceYear, dueDate, observation } = req.body || {};
+  const { studentId, enrollmentId, referenceMonth, referenceYear, dueDate, observation, period } = req.body || {};
   if (!enrollmentId) return res.status(400).json({ message: 'A matrícula é obrigatória para criar uma mensalidade.' });
 
   const enrollment = (db.enrollments || []).find((e) => e.id === enrollmentId);
   if (!enrollment) return res.status(404).json({ message: 'Matrícula não encontrada.' });
   if (enrollment.studentId !== studentId) return res.status(400).json({ message: 'A matrícula informada não pertence ao aluno.' });
 
+  const modality = (db.modalities || []).find((m) => m.id === enrollment.modalityId);
+  const modalityPrice = Number(modality?.monthlyPrice !== undefined ? modality.monthlyPrice : (enrollment.contractedPrice || 0));
+  const pct = Math.max(0, Math.min(100, Number(enrollment.discountPercentage) || 0));
+  const totalDiscountAmount = Math.round((modalityPrice * (pct / 100)) * 100) / 100;
+  const totalFinalAmount = Math.round((modalityPrice - totalDiscountAmount) * 100) / 100;
+
+  const effectivePeriod = period || (
+    (enrollment.billingFrequency === 'BIWEEKLY' || enrollment.billingFrequency === 'QUINZENAL')
+      ? 'FIRST_FORTNIGHT'
+      : 'MONTHLY'
+  );
+
   const existing = (db.payments || []).find(
-    (p) => p.enrollmentId === enrollmentId && p.referenceMonth === Number(referenceMonth) && p.referenceYear === Number(referenceYear)
+    (p) => p.enrollmentId === enrollmentId &&
+      p.referenceMonth === Number(referenceMonth) &&
+      p.referenceYear === Number(referenceYear) &&
+      (p.period || 'MONTHLY') === effectivePeriod
   );
   if (existing) {
-    return res.status(400).json({ message: 'Já existe uma mensalidade para esta matrícula neste mês.' });
+    return res.status(400).json({ message: 'Já existe uma cobrança para este período desta matrícula neste mês.' });
   }
 
-  const modality = (db.modalities || []).find((m) => m.id === enrollment.modalityId);
-  const contractedPrice = Number(enrollment.contractedPrice || modality?.monthlyPrice || 0);
-  const discountAmount = Number(enrollment.discountAmount || 0);
-  const finalAmount = Number(enrollment.finalPrice || (contractedPrice - discountAmount));
+  let amount = modalityPrice;
+  let discountAmount = totalDiscountAmount;
+  let finalAmount = totalFinalAmount;
+  let defaultObservation = `Mensalidade de ${modality?.name || 'Modalidade'}.`;
+
+  if (effectivePeriod === 'FIRST_FORTNIGHT' || effectivePeriod === 'SECOND_FORTNIGHT') {
+    const split = splitFortnightAmounts(modalityPrice, totalFinalAmount);
+    const isFirst = effectivePeriod === 'FIRST_FORTNIGHT';
+    const part = isFirst ? split.first : split.second;
+    amount = part.amount;
+    discountAmount = part.discountAmount;
+    finalAmount = part.finalAmount;
+    defaultObservation = `Mensalidade de ${modality?.name || 'Modalidade'} (${isFirst ? '1ª quinzena' : '2ª quinzena'}).`;
+  }
 
   const newPayment = {
     id: generateId('pay'),
@@ -1894,8 +2099,9 @@ app.post(['/payments', '/api/payments'], (req, res) => {
     enrollmentId,
     referenceMonth: Number(referenceMonth),
     referenceYear: Number(referenceYear),
+    period: effectivePeriod,
     dueDate: dueDate ? new Date(dueDate).toISOString() : new Date().toISOString(),
-    amount: contractedPrice,
+    amount,
     discountAmount,
     finalAmount,
     method: null,
@@ -1903,7 +2109,7 @@ app.post(['/payments', '/api/payments'], (req, res) => {
     paidAt: null,
     transactionId: null,
     receiptGenerated: false,
-    observation: observation || `Mensalidade de ${modality?.name || 'Modalidade'}.`,
+    observation: observation || defaultObservation,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

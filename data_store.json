@@ -204,6 +204,24 @@
       "observation": "Turma de sábados manhã",
       "createdAt": "2026-02-20T00:00:00.000Z",
       "updatedAt": "2026-02-20T00:00:00.000Z"
+    },
+    {
+      "id": "enr-muxjwmdx-62q57",
+      "studentId": "std-2",
+      "modalityId": "mod-7",
+      "classId": null,
+      "status": "ACTIVE",
+      "billingFrequency": "BIWEEKLY",
+      "startDate": "2026-03-01T00:00:00.000Z",
+      "endDate": null,
+      "approvedAt": "2026-10-07T03:31:38.709Z",
+      "contractedPrice": 200,
+      "discountPercentage": 10,
+      "discountAmount": 20,
+      "finalPrice": 180,
+      "observation": null,
+      "createdAt": "2026-10-07T03:31:38.709Z",
+      "updatedAt": "2026-10-07T03:31:38.709Z"
     }
   ],
   "settings": [
@@ -365,7 +383,20 @@
       "updatedAt": "2026-01-01T00:00:00.000Z"
     }
   ],
-  "documents": [],
+  "documents": [
+    {
+      "id": "doc-muxjwmdx-aq5y3",
+      "studentId": "std-2",
+      "enrollmentId": "enr-muxjwmdx-62q57",
+      "type": "RECEIPT",
+      "title": "Recibo de Prestação de Serviços - Academia",
+      "content": "<h3>RECIBO DE PRESTAÇÃO DE SERVIÇO</h3><p>Declaramos para os devidos fins que o(a) aluno(a) <strong>Mariana Silva</strong> celebrou matrícula no curso/modalidade <strong>Academia</strong> junto ao <strong>FitFisio Pilates & Saúde</strong>.</p><p>Valor mensal de tabela: R$ 200.00<br/>Desconto acordado: 10% (R$ 20.00)<br/><strong>Valor final mensal: R$ 180.00</strong></p><p>Data de início: 01/03/2026</p><p>Cláusula: As mensalidades possuem vencimento mensal e garantem o acesso aos treinos e acompanhamento profissional especializado.</p><br/><br/><p>_____________________________________<br/>FitFisio Pilates & Saúde - Aline Guimarães</p>",
+      "status": "PENDING",
+      "issueDate": "2026-10-07T03:31:38.715Z",
+      "createdAt": "2026-10-07T03:31:38.715Z",
+      "updatedAt": "2026-10-07T03:31:38.715Z"
+    }
+  ],
   "serviceReceipts": [
     {
       "id": "rcp-mu1qrlyq-778f2",
@@ -377,6 +408,17 @@
       "observation": "Documento assinado e aprovado pela gerência.",
       "createdAt": "2026-09-14T21:15:04.562Z",
       "updatedAt": "2026-09-14T21:15:15.759Z"
+    },
+    {
+      "id": "rcp-muxjwmdx-abyg7",
+      "enrollmentId": "enr-muxjwmdx-62q57",
+      "documentPath": "uploads/documents/receipts/recibo-servico-enr-muxjwmdx-62q57.pdf",
+      "status": "PENDING",
+      "filledAt": "2026-10-07T03:31:38.709Z",
+      "approvedAt": null,
+      "observation": null,
+      "createdAt": "2026-10-07T03:31:38.709Z",
+      "updatedAt": "2026-10-07T03:31:38.709Z"
     }
   ],
   "payments": [
@@ -436,6 +478,46 @@
       "observation": "Mensalidade de Natação Criança - Outubro/2026",
       "createdAt": "2026-10-01T00:00:00.000Z",
       "updatedAt": "2026-10-01T00:00:00.000Z"
+    },
+    {
+      "id": "pay-muxjwskc-enp8f",
+      "studentId": "std-2",
+      "enrollmentId": "enr-muxjwmdx-62q57",
+      "referenceMonth": 3,
+      "referenceYear": 2026,
+      "period": "FIRST_FORTNIGHT",
+      "dueDate": "2026-03-10T00:00:00.000Z",
+      "amount": 100,
+      "discountAmount": 10,
+      "finalAmount": 90,
+      "method": "PIX",
+      "status": "PAID",
+      "paidAt": "2026-10-07T03:31:55.419Z",
+      "transactionId": "PIX-12345",
+      "receiptGenerated": false,
+      "observation": "Mensalidade de Academia (1ª quinzena).",
+      "createdAt": "2026-10-07T03:31:46.716Z",
+      "updatedAt": "2026-10-07T03:31:55.419Z"
+    },
+    {
+      "id": "pay-muxjwskc-4j7ze",
+      "studentId": "std-2",
+      "enrollmentId": "enr-muxjwmdx-62q57",
+      "referenceMonth": 3,
+      "referenceYear": 2026,
+      "period": "SECOND_FORTNIGHT",
+      "dueDate": "2026-03-25T00:00:00.000Z",
+      "amount": 100,
+      "discountAmount": 10,
+      "finalAmount": 90,
+      "method": null,
+      "status": "PENDING",
+      "paidAt": null,
+      "transactionId": null,
+      "receiptGenerated": false,
+      "observation": "Mensalidade de Academia (2ª quinzena).",
+      "createdAt": "2026-10-07T03:31:46.716Z",
+      "updatedAt": "2026-10-07T03:31:46.716Z"
     }
   ],
   "notifications": [

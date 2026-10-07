@@ -590,9 +590,14 @@ export function EnrollmentsPage() {
 
                       {/* Valor & Desconto */}
                       <td className="px-5 py-4">
-                        <div className="font-bold text-slate-900 text-sm">
-                          R$ {Number(e.finalPrice || 0).toFixed(2)}
+                        <div className="font-bold text-slate-900 text-sm flex items-center flex-wrap gap-1">
+                          <span>R$ {Number(e.finalPrice || 0).toFixed(2)}</span>
                           <span className="text-xs font-normal text-slate-500">/mês</span>
+                          {e.billingFrequency === 'BIWEEKLY' && (
+                            <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200">
+                              Quinzenal
+                            </span>
+                          )}
                         </div>
                         {e.discountPercentage > 0 ? (
                           <div className="text-xs text-emerald-700 font-semibold mt-0.5">

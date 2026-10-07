@@ -1,11 +1,13 @@
 import {
   IsDateString,
+  IsEnum,
   IsNumber,
   IsOptional,
   IsString,
   Max,
   Min,
 } from 'class-validator';
+import { BillingFrequency } from 'generated/prisma/enums';
 
 export class CreateEnrollmentDto {
   @IsString()
@@ -34,4 +36,8 @@ export class CreateEnrollmentDto {
   @IsOptional()
   @IsString()
   classId?: string;
+
+  @IsOptional()
+  @IsEnum(BillingFrequency)
+  billingFrequency?: BillingFrequency;
 }
