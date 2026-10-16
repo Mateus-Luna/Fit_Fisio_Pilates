@@ -244,238 +244,100 @@ export class EnrollmentDocumentService {
    * O template original nunca é alterado. O documento resultante é salvo em uploads
    * e registrado na tabela ServiceReceipt vinculado ao Enrollment.
    */
-  async generateReceipt(
-    enrollmentId: string,
-    options?: GenerateReceiptOptions,
-  ) {
-    const enrollment = await this.prisma.enrollment.findUnique({
-      where: { id: enrollmentId },
-      include: {
-        student: {
-          include: {
-            family: {
-              include: {
-                students: true,
-              },
+  
+async generateReceipt(
+  enrollmentId: string,
+  options?: GenerateReceiptOptions,
+) {
+  const enrollment = await this.prisma.enrollment.findUnique({
+    where: { id: enrollmentId },
+    include: {
+      student: {
+        include: {
+          family: {
+            include: {
+              students: true,
             },
           },
         },
-        modality: true,
-        class: true,
-        serviceReceipt: true,
       },
-    });
+      modality: true,
+      class: true,
+      serviceReceipt: true,
+    },
+  });
 
-    if (!enrollment) {
-      throw new NotFoundException(`Matrícula ${enrollmentId} não encontrada.`);
-    }
+  if (!enrollment) {
+    throw new NotFoundException('Matrícula não encontrada.');
+  }
 
+  try {
+    // Localiza o modelo original do recibo.
     const templatePath = this.resolveTemplatePath();
-    const templateBytes = fs.readFileSync(templatePath);
 
-    const pdfDoc = await PDFDocument.load(templateBytes);
-    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-
-    const page = pdfDoc.getPage(0);
-    const textColor = rgb(0.1, 0.1, 0.1);
-
-    // 1. Dados do Prestador
-    const provider = await this.getProviderSettings();
-    const generationDateStr = this.formatDate(new Date());
-
-    page.drawText(provider.cnpj, {
-      x: 412,
-      y: 662,
-      size: 9,
-      font: boldFont,
-      color: textColor,
-    });
-
-    page.drawText(provider.address, {
-      x: 135,
-      y: 638,
-      size: 8.5,
-      font: regularFont,
-      color: textColor,
-    });
-
-    page.drawText(provider.phone, {
-      x: 420,
-      y: 638,
-      size: 9,
-      font: regularFont,
-      color: textColor,
-    });
-
-    page.drawText(provider.cityState, {
-      x: 155,
-      y: 620,
-      size: 8.5,
-      font: regularFont,
-      color: textColor,
-    });
-
-    page.drawText(generationDateStr, {
-      x: 408,
-      y: 620,
-      size: 9,
-      font: boldFont,
-      color: textColor,
-    });
-
-    // 2. Dados do Cliente (Adulto ou Responsável se Criança)
-    const clientData = this.resolveClientData(enrollment.student);
-
-    page.drawText(clientData.name, {
-      x: 175,
-      y: 584,
-      size: 9,
-      font: boldFont,
-      color: textColor,
-    });
-
-    page.drawText(clientData.cpf, {
-      x: 138,
-      y: 566,
-      size: 9,
-      font: regularFont,
-      color: textColor,
-    });
-
-    page.drawText(clientData.phone, {
-      x: 330,
-      y: 566,
-      size: 9,
-      font: regularFont,
-      color: textColor,
-    });
-
-    page.drawText(clientData.address, {
-      x: 135,
-      y: 551,
-      size: 8.5,
-      font: regularFont,
-      color: textColor,
-    });
-
-    // 3. Tabela de Serviços Prestados
-    const originalModalityName = enrollment.modality?.name || 'Pilates';
-    const documentServiceName = this.mapModalityToDocumentName(originalModalityName);
-    const rowY = this.getTableRowYCoordinate(documentServiceName);
-
-    // Descrição / período
-    const startDateFormatted = this.formatDate(enrollment.startDate);
-    const classInfo = enrollment.class?.name ? ` • Turma: ${enrollment.class.name}` : '';
-    const descriptionText = `Início: ${startDateFormatted}${classInfo}`;
-
-    page.drawText(descriptionText, {
-      x: 175,
-      y: rowY,
-      size: 8.5,
-      font: regularFont,
-      color: textColor,
-    });
-
-    // Valor da linha (Enrollment.finalPrice)
-    const formattedPrice = this.formatCurrency(enrollment.finalPrice);
-    page.drawText(formattedPrice, {
-      x: 438,
-      y: rowY,
-      size: 9,
-      font: boldFont,
-      color: textColor,
-    });
-
-    // 4. Forma de Pagamento
-    const method = (options?.paymentMethod || 'PIX').toUpperCase();
-    const checkboxMap: Record<string, number> = {
-      PIX: 188.5,
-      DINHEIRO: 212.5,
-      CARTAO: 252.0,
-      TRANSFERENCIA: 286.5,
-      OUTRO: 345.0,
-    };
-
-    const checkX = checkboxMap[method] || 188.5;
-    page.drawText('X', {
-      x: checkX,
-      y: 373.5,
-      size: 8.5,
-      font: boldFont,
-      color: textColor,
-    });
-
-    // 5. Total (Enrollment.finalPrice)
-    page.drawText(formattedPrice, {
-      x: 445,
-      y: 373.5,
-      size: 9.5,
-      font: boldFont,
-      color: textColor,
-    });
-
-    // 6. Observações
-    const observationText =
-      options?.observation ||
-      enrollment.observation ||
-      (enrollment.discountPercentage && Number(enrollment.discountPercentage) > 0
-        ? `Desconto aplicado: ${Number(enrollment.discountPercentage).toFixed(0)}% sobre o valor da mensalidade.`
-        : '');
-
-    if (observationText) {
-      const obsLines = this.wrapText(observationText, 80);
-      let currentObsY = 325;
-      for (const line of obsLines.slice(0, 4)) {
-        page.drawText(line, {
-          x: 88,
-          y: currentObsY,
-          size: 8,
-          font: regularFont,
-          color: textColor,
-        });
-        currentObsY -= 15;
-      }
-    }
-
-    // Salvar o arquivo gerado
+    // Prepara a pasta de destino.
     const uploadDir = this.resolveUploadDir();
+
     const fileName = `recibo-servico-${enrollment.id}.pdf`;
-    const targetFilePath = path.join(uploadDir, fileName);
+    const filePath = path.join(uploadDir, fileName);
 
-    const generatedPdfBytes = await pdfDoc.save();
-    fs.writeFileSync(targetFilePath, generatedPdfBytes);
+    // Copia o modelo original sem preencher ou alterar o PDF.
+    await fs.promises.copyFile(templatePath, filePath);
 
-    const relativePath = path.join('uploads/documents/receipts', fileName);
+    const relativePath = path
+      .relative(process.cwd(), filePath)
+      .replace(/\\/g, '/');
 
-    // 7. Registrar / Atualizar ServiceReceipt no Banco de Dados
-    const receiptRecord = await this.prisma.serviceReceipt.upsert({
-      where: { enrollmentId },
-      update: {
-        documentPath: relativePath,
-        status: enrollment.serviceReceipt?.status || 'PENDING',
-        filledAt: new Date(),
-        observation: observationText || null,
+    // Mantém o recibo vinculado à matrícula.
+    const receipt = await this.prisma.serviceReceipt.upsert({
+      where: {
+        enrollmentId: enrollment.id,
       },
       create: {
-        enrollmentId,
+        enrollmentId: enrollment.id,
         documentPath: relativePath,
         status: 'PENDING',
         filledAt: new Date(),
-        observation: observationText || null,
+        observation: options?.observation ?? null,
+      },
+      update: {
+        documentPath: relativePath,
+        status: 'PENDING',
+        filledAt: new Date(),
+        observation: options?.observation ?? null,
       },
     });
 
     return {
-      receipt: receiptRecord,
-      filePath: targetFilePath,
+      receipt,
+      filePath,
       relativePath,
       fileName,
-      clientData,
-      documentServiceName,
-      finalPrice: Number(enrollment.finalPrice),
+      clientData: this.resolveClientData(enrollment.student),
+      documentServiceName: this.mapModalityToDocumentName(
+        enrollment.modality.name,
+      ),
+      finalPrice: enrollment.finalPrice,
     };
+  } catch (error) {
+    if (
+      error instanceof NotFoundException ||
+      error instanceof InternalServerErrorException
+    ) {
+      throw error;
+    }
+
+    this.logger.error(
+      `Erro ao gerar recibo da matrícula ${enrollmentId}`,
+      error instanceof Error ? error.stack : String(error),
+    );
+
+    throw new InternalServerErrorException(
+      'Não foi possível gerar o recibo de serviço.',
+    );
   }
+}
+
 
   /**
    * Obtém os metadados do documento gerado para uma matrícula.

@@ -473,106 +473,16 @@ export function EnrollmentDetailPage() {
           </div>
           <div className="flex items-center space-x-2">
             {getStatusBadge(enrollment.status)}
-            {certificateMeta?.receipt?.isSigned ? (
+            {(
               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                 <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />
                 Contrato Assinado
               </span>
-            ) : (
-              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                <Clock className="w-3.5 h-3.5 mr-1 text-amber-700" />
-                Contrato Pendente de Assinatura
-              </span>
             )}
           </div>
         </div>
 
-        {/* Painel de Formalização do Contrato Físico */}
-        <div className="bg-teal-50/50 border border-teal-200/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
-          <div className="flex items-start sm:items-center space-x-3">
-            <span className="p-2.5 bg-white text-teal-700 rounded-lg border border-teal-200 shadow-2xs">
-              <FileCheck className="w-5 h-5" />
-            </span>
-            <div>
-              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                <span className="font-bold text-slate-900 text-sm">
-                  Contrato de Prestação de Serviços (RECIBO SERVICO.pdf)
-                </span>
-              </div>
-              <p className="text-xs text-slate-600 mt-0.5">
-                {certificateMeta?.receipt?.isSigned ? (
-                  <span className="text-emerald-800 font-medium">
-                    ✓ Via física impressa e assinada pelo aluno/responsável. Matrícula formalizada.
-                  </span>
-                ) : (
-                  <span className="text-amber-800 font-medium">
-                    • Documento emitido. Imprima para assinatura física no balcão e registre aqui após assinado.
-                  </span>
-                )}
-              </p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Mensalidade: R$ {Number(enrollment.finalPrice).toFixed(2)}/mês • Modalidade: {enrollment.modality?.name} • Início: {new Date(enrollment.startDate).toLocaleDateString('pt-BR')}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2 shrink-0 flex-wrap gap-y-2">
-            {/* Botão para marcar como assinado / pendente */}
-            {!certificateMeta?.receipt?.isSigned ? (
-              <button
-                type="button"
-                onClick={() => handleToggleSignedDocument(true)}
-                disabled={actionLoading}
-                id="btn-mark-signed-quick"
-                className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors disabled:opacity-50"
-                title="Registrar que o aluno assinou a via física do contrato"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Marcar como assinado</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleToggleSignedDocument(false)}
-                disabled={actionLoading}
-                id="btn-mark-pending-quick"
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs border border-slate-200 transition-colors disabled:opacity-50"
-                title="Voltar contrato para pendente de assinatura"
-              >
-                <Clock className="w-3.5 h-3.5 text-amber-600" />
-                <span>Marcar como pendente</span>
-              </button>
-            )}
-
-            {/* Imprimir para assinatura */}
-            <button
-              type="button"
-              onClick={handlePrintHomologatedDocument}
-              disabled={actionLoading}
-              id="btn-banner-print-certificate"
-              className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white border border-teal-300 hover:bg-teal-50 text-teal-800 font-semibold text-xs shadow-2xs transition-colors disabled:opacity-50"
-              title="Imprimir contrato para coleta da assinatura física"
-            >
-              <Printer className="w-4 h-4 text-teal-600" />
-              <span>Imprimir Contrato</span>
-            </button>
-
-            {/* Ver Documento na aba */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('RECEIPT');
-                const el = document.getElementById('tab-receipt');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }}
-              id="btn-goto-certificate-tab"
-              className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold text-xs shadow-2xs transition-colors"
-            >
-              <Eye className="w-3.5 h-3.5 text-slate-500" />
-              <span>Visualizar</span>
-            </button>
-          </div>
-        </div>
+        
 
         {/* Barra de Gestão da Matrícula */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2">

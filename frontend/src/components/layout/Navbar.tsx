@@ -207,13 +207,7 @@ export default function Navbar() {
             Inadimplentes
           </NavLink>
 
-          <NavLink
-            to="/receipts"
-            className={linkClass}
-          >
-            <span>🧾</span>
-            Recibos
-          </NavLink>
+          
         </div>
 
         <div className="nav-section">

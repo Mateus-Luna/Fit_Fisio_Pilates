@@ -107,6 +107,7 @@ export class ModalitiesService {
     return modality;
   }
 
+ 
   async update(
     id: string,
     updateModalityDto: UpdateModalityDto,
@@ -122,69 +123,104 @@ export class ModalitiesService {
         ? updateModalityDto.capacity
         : currentModality.capacity;
 
-    this.validateCapacity(
-      requiresClass,
-      capacity,
-    );
+    this.validateCapacity(requiresClass, capacity);
 
-    const updated = await this.prisma.modality.update({
-      where: { id },
-      data: {
-        ...(updateModalityDto.name !== undefined && {
-          name: updateModalityDto.name,
-        }),
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Atualiza a modalidade.
+      const updated = await tx.modality.update({
+        where: { id },
+        data: {
+          ...(updateModalityDto.name !== undefined && {
+            name: updateModalityDto.name,
+          }),
 
-        ...(updateModalityDto.description !== undefined && {
-          description: updateModalityDto.description,
-        }),
+          ...(updateModalityDto.description !== undefined && {
+            description: updateModalityDto.description,
+          }),
 
-        ...(updateModalityDto.monthlyPrice !== undefined && {
-          monthlyPrice: updateModalityDto.monthlyPrice,
-        }),
+          ...(updateModalityDto.monthlyPrice !== undefined && {
+            monthlyPrice: updateModalityDto.monthlyPrice,
+          }),
 
-        ...(updateModalityDto.requiresClass !== undefined && {
-          requiresClass: updateModalityDto.requiresClass,
-        }),
+          ...(updateModalityDto.requiresClass !== undefined && {
+            requiresClass: updateModalityDto.requiresClass,
+          }),
 
-        ...(updateModalityDto.capacity !== undefined && {
-          capacity: updateModalityDto.capacity,
-        }),
-      },
-    });
+          ...(updateModalityDto.capacity !== undefined && {
+            capacity: updateModalityDto.capacity,
+          }),
+        },
+      });
 
-    if (updateModalityDto.monthlyPrice !== undefined) {
+      // Se o preço não foi alterado, não recalcula mensalidades.
+      if (updateModalityDto.monthlyPrice === undefined) {
+        return updated;
+      }
+
       const newPrice = Number(updateModalityDto.monthlyPrice);
-      const activeEnrollments = await this.prisma.enrollment.findMany({
+
+      // 2. Busca todas as matrículas ativas da modalidade.
+      const activeEnrollments = await tx.enrollment.findMany({
         where: {
           modalityId: id,
           status: EnrollmentStatus.ACTIVE,
         },
       });
 
-      for (const enr of activeEnrollments) {
-        const pct = Number(enr.discountPercentage || 0);
-        const totalDiscountAmount = Number(((newPrice * pct) / 100).toFixed(2));
-        const totalFinalAmount = Number((newPrice - totalDiscountAmount).toFixed(2));
+      for (const enrollment of activeEnrollments) {
+        // Mantém o desconto individual já configurado.
+        const percentage = Number(
+          enrollment.discountPercentage ?? 0,
+        );
 
-        const pendingPayments = await this.prisma.payment.findMany({
+        const totalDiscountAmount = Number(
+          ((newPrice * percentage) / 100).toFixed(2),
+        );
+
+        const totalFinalAmount = Number(
+          (newPrice - totalDiscountAmount).toFixed(2),
+        );
+
+        // 3. Atualiza os valores da própria matrícula.
+        await tx.enrollment.update({
           where: {
-            enrollmentId: enr.id,
+            id: enrollment.id,
+          },
+          data: {
+            contractedPrice: newPrice,
+            discountAmount: totalDiscountAmount,
+            finalPrice: totalFinalAmount,
+          },
+        });
+
+        // 4. Busca apenas os pagamentos ainda pendentes.
+        const pendingPayments = await tx.payment.findMany({
+          where: {
+            enrollmentId: enrollment.id,
             status: PaymentStatus.PENDING,
           },
         });
 
-        for (const p of pendingPayments) {
+        for (const payment of pendingPayments) {
+          // Mantém a divisão de valores para cobranças quinzenais.
           if (
-            p.period === PaymentPeriod.FIRST_FORTNIGHT ||
-            p.period === PaymentPeriod.SECOND_FORTNIGHT
+            payment.period === PaymentPeriod.FIRST_FORTNIGHT ||
+            payment.period === PaymentPeriod.SECOND_FORTNIGHT
           ) {
-            const split = splitFortnightAmounts(newPrice, totalFinalAmount);
+            const split = splitFortnightAmounts(
+              newPrice,
+              totalFinalAmount,
+            );
+
             const part =
-              p.period === PaymentPeriod.FIRST_FORTNIGHT
+              payment.period === PaymentPeriod.FIRST_FORTNIGHT
                 ? split.first
                 : split.second;
-            await this.prisma.payment.update({
-              where: { id: p.id },
+
+            await tx.payment.update({
+              where: {
+                id: payment.id,
+              },
               data: {
                 amount: part.amount,
                 discountAmount: part.discountAmount,
@@ -192,8 +228,11 @@ export class ModalitiesService {
               },
             });
           } else {
-            await this.prisma.payment.update({
-              where: { id: p.id },
+            // Atualiza cobranças integrais pendentes.
+            await tx.payment.update({
+              where: {
+                id: payment.id,
+              },
               data: {
                 amount: newPrice,
                 discountAmount: totalDiscountAmount,
@@ -203,10 +242,11 @@ export class ModalitiesService {
           }
         }
       }
-    }
 
-    return updated;
+      return updated;
+    });
   }
+
 
   async deactivate(id: string) {
     await this.findOne(id);
