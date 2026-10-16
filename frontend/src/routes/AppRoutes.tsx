@@ -22,6 +22,8 @@ import { CertificatesPage } from '../pages/documents/CertificatesPage';
 import FinancePage from '../pages/finance/FinancePage';
 import NotificationsPage from '../pages/notifications/NotificationsPage';
 import { StudentDetailPage } from '../pages/students/StudentDetailPage';
+import ClassesPage from '../pages/classes/ClassesPage';
+import SchedulesPage from '../pages/schedules/SchedulesPage';
 
 function ProtectedRoutes() {
   const { isAuthenticated } = useAuth();
@@ -61,6 +63,10 @@ export default function AppRoutes() {
            element={<ModalitiesPage />} />
            <Route path="/modalities/:slug"
             element={<ModalityPage />} />
+          <Route path="/classes"
+            element={<ClassesPage />} />
+          <Route path="/schedules"
+            element={<SchedulesPage />} />
           <Route path="/enrollments"
             element={<EnrollmentsPage />} />
           <Route path="/enrollments/new"

@@ -11,6 +11,7 @@ export interface StudentEnrollment {
   id: string;
   studentId: string;
   modalityId: string;
+  classId?: string | null;
   status: string;
   billingFrequency?: 'MONTHLY' | 'BIWEEKLY';
   startDate?: string;

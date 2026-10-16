@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   settingsService,
   type SystemSetting,
 } from '../../services/settings.service';
+import { backupService } from '../../services/backup.service';
 
 interface SettingForm {
   key: string;
@@ -24,6 +25,12 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Estados de Backup e Restauração
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupFeedback, setBackupFeedback] = useState('');
+  const [backupError, setBackupError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   async function loadSettings() {
     try {
@@ -147,16 +154,181 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleDoBackup() {
+    try {
+      setBackupLoading(true);
+      setBackupError('');
+      setBackupFeedback('');
+      await backupService.exportBackup();
+      setBackupFeedback('Arquivo de backup gerado e baixado com sucesso!');
+      setTimeout(() => setBackupFeedback(''), 5000);
+    } catch (err: any) {
+      setBackupError(err?.response?.data?.message || 'Erro ao realizar backup dos dados.');
+    } finally {
+      setBackupLoading(false);
+    }
+  }
+
+  function handleTriggerRestore() {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    const confirmRestore = window.confirm(
+      `Deseja realmente restaurar os dados a partir do arquivo "${file.name}"?\n\n` +
+      `ATENÇÃO: As tabelas do sistema (alunos, famílias, modalidades, turmas, matrículas e finanças) serão atualizadas com o conteúdo do backup.`
+    );
+
+    if (!confirmRestore) return;
+
+    try {
+      setBackupLoading(true);
+      setBackupError('');
+      setBackupFeedback('');
+
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+
+      const res = await backupService.restoreBackup(parsed);
+      const countsStr = res.counts
+        ? ` (Alunos: ${res.counts.students}, Modalidades: ${res.counts.modalities}, Turmas: ${res.counts.classes}, Matrículas: ${res.counts.enrollments})`
+        : '';
+
+      setBackupFeedback((res.message || 'Backup restaurado com sucesso!') + countsStr);
+      await loadSettings();
+    } catch (err: any) {
+      console.error('Erro na restauração:', err);
+      setBackupError(err?.response?.data?.message || 'Arquivo de backup inválido ou falha ao restaurar dados.');
+    } finally {
+      setBackupLoading(false);
+    }
+  }
+
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <h1>Configurações</h1>
           <p>
-            Gerencie as configurações gerais do FitFisio.
+            Gerencie as configurações gerais, parâmetros e segurança do FitFisio.
           </p>
         </div>
       </div>
+
+      {/* SEÇÃO DE BACKUP E RESTAURAÇÃO DE DADOS */}
+      <section className="card" style={{ marginBottom: '24px', borderLeft: '4px solid #0d9488' }}>
+        <div className="section-header" style={{ marginBottom: '16px' }}>
+          <div>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+              <span>💾</span>
+              Backup e Restauração do Sistema
+            </h2>
+            <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
+              Faça cópias de segurança de todas as informações (alunos, famílias, modalidades, turmas, matrículas, pagamentos, configurações e documentos) ou restaure dados salvos.
+            </p>
+          </div>
+        </div>
+
+        {backupFeedback && (
+          <div
+            style={{
+              padding: '12px 16px',
+              marginBottom: '16px',
+              borderRadius: '8px',
+              backgroundColor: '#ecfdf5',
+              color: '#065f46',
+              fontSize: '13px',
+              fontWeight: 500,
+              border: '1px solid #a7f3d0',
+            }}
+          >
+            ✓ {backupFeedback}
+          </div>
+        )}
+
+        {backupError && (
+          <div
+            style={{
+              padding: '12px 16px',
+              marginBottom: '16px',
+              borderRadius: '8px',
+              backgroundColor: '#fee2e2',
+              color: '#b91c1c',
+              fontSize: '13px',
+              fontWeight: 500,
+              border: '1px solid #fecaca',
+            }}
+          >
+            ⚠️ {backupError}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={handleDoBackup}
+            disabled={backupLoading}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              border: 'none',
+              backgroundColor: '#0d9488',
+              color: '#ffffff',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+            }}
+          >
+            <span>📥</span>
+            {backupLoading ? 'Processando...' : 'Fazer backup'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleTriggerRestore}
+            disabled={backupLoading}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              backgroundColor: '#ffffff',
+              color: '#334155',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            <span>📤</span>
+            {backupLoading ? 'Processando...' : 'Restaurar backup'}
+          </button>
+
+          {/* Input oculto para selecionar o arquivo .json de backup */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+          />
+
+          <span style={{ fontSize: '12px', color: '#64748b' }}>
+            Formato: arquivo <strong>.json</strong> completo gerado pelo FitFisio.
+          </span>
+        </div>
+      </section>
 
       {error && (
         <div className="error-message">

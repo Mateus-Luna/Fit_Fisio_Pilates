@@ -1,0 +1,538 @@
+{
+  "users": [
+    {
+      "id": "usr-1",
+      "name": "Aline",
+      "email": "aline@fitfisio.com.br",
+      "password": "admin",
+      "active": true,
+      "createdAt": "2026-09-08T04:22:08.495Z"
+    },
+    {
+      "id": "usr-mts61tz8-9d9vv",
+      "name": "Aline",
+      "email": "alineguimaraesbb@hotmail.com",
+      "password": "123456",
+      "active": true,
+      "createdAt": "2026-09-08T04:25:13.988Z"
+    }
+  ],
+  "families": [
+    {
+      "id": "fam-1",
+      "name": "Família Silva",
+      "observation": "Desconto familiar aplicado",
+      "createdAt": "2026-01-10T00:00:00.000Z",
+      "updatedAt": "2026-01-10T00:00:00.000Z"
+    },
+    {
+      "id": "fam-2",
+      "name": "Família Oliveira",
+      "observation": "Pais e filhos matriculados na natação",
+      "createdAt": "2026-02-15T00:00:00.000Z",
+      "updatedAt": "2026-02-15T00:00:00.000Z"
+    }
+  ],
+  "modalities": [
+    {
+      "id": "mod-1",
+      "name": "Pilates",
+      "description": "Aulas personalizadas de pilates em aparelhos e solo",
+      "monthlyPrice": 220,
+      "requiresClass": false,
+      "capacity": null,
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "mod-2",
+      "name": "Fisioterapia",
+      "description": "Atendimento clínico e reabilitação postural",
+      "monthlyPrice": 180,
+      "requiresClass": false,
+      "capacity": null,
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "mod-3",
+      "name": "Hidroginástica",
+      "description": "Exercícios aeróbicos aquáticos em grupo",
+      "monthlyPrice": 170,
+      "requiresClass": true,
+      "capacity": 8,
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "mod-4",
+      "name": "Hidroterapia",
+      "description": "Fisioterapia aquática para alívio articular",
+      "monthlyPrice": 240,
+      "requiresClass": true,
+      "capacity": 5,
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "mod-5",
+      "name": "Natação Adulto",
+      "description": "Aperfeiçoamento de técnicas e condicionamento",
+      "monthlyPrice": 190,
+      "requiresClass": true,
+      "capacity": 8,
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "mod-6",
+      "name": "Natação Criança",
+      "description": "Iniciação à natação e adaptação aquática infantil",
+      "monthlyPrice": 190,
+      "requiresClass": true,
+      "capacity": 8,
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "mod-7",
+      "name": "Academia",
+      "description": "Musculação e treino funcional assistido",
+      "monthlyPrice": 200,
+      "requiresClass": false,
+      "capacity": null,
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-09-09T21:14:36.436Z"
+    }
+  ],
+  "students": [
+    {
+      "id": "std-1",
+      "name": "Carlos Eduardo Silva",
+      "birthDate": "1990-04-12T00:00:00.000Z",
+      "phone": "(11) 98765-4321",
+      "address": "Rua das Palmeiras, 142b - Centro",
+      "observation": "Recuperação de lombalgia crônica",
+      "type": "ADULT",
+      "rg": "34.567.890-1",
+      "cpf": "123.456.789-01",
+      "active": true,
+      "familyId": null,
+      "createdAt": "2026-02-01T00:00:00.000Z",
+      "updatedAt": "2026-09-09T20:58:26.971Z"
+    },
+    {
+      "id": "std-2",
+      "name": "Mariana Silva",
+      "birthDate": "1993-09-24T00:00:00.000Z",
+      "phone": "(11) 98765-4322",
+      "address": "Rua das Palmeiras, 142 - Centro",
+      "observation": "Pilates para fortalecimento do core",
+      "type": "ADULT",
+      "rg": "42.123.456-7",
+      "cpf": "234.567.890-12",
+      "active": true,
+      "familyId": "fam-1",
+      "createdAt": "2026-02-05T00:00:00.000Z",
+      "updatedAt": "2026-02-05T00:00:00.000Z"
+    },
+    {
+      "id": "std-3",
+      "name": "Lucas Oliveira",
+      "birthDate": "2017-06-18T00:00:00.000Z",
+      "phone": "8399665555",
+      "address": "Av. Brasil, 800 - Apto 32",
+      "observation": "Autorização médica entregue para natação",
+      "type": "CHILD",
+      "rg": null,
+      "cpf": null,
+      "active": true,
+      "familyId": "fam-2",
+      "createdAt": "2026-02-20T00:00:00.000Z",
+      "updatedAt": "2026-09-09T20:52:32.180Z"
+    },
+    {
+      "id": "std-mts63fa4-hxrzt",
+      "name": "Mateus Medeiros",
+      "birthDate": "2001-01-10T00:00:00.000Z",
+      "phone": "83996655002",
+      "address": "Avenida Ana de Azevedo, 92",
+      "observation": null,
+      "type": "ADULT",
+      "rg": "3999777",
+      "cpf": "09911104411",
+      "familyId": "fam-1",
+      "active": true,
+      "createdAt": "2026-09-08T04:26:28.252Z",
+      "updatedAt": "2026-09-09T20:57:26.644Z"
+    }
+  ],
+  "enrollments": [
+    {
+      "id": "enr-1",
+      "studentId": "std-1",
+      "modalityId": "mod-1",
+      "status": "ACTIVE",
+      "startDate": "2026-02-01T00:00:00.000Z",
+      "endDate": null,
+      "contractedPrice": 220,
+      "discountPercentage": 0,
+      "discountAmount": 0,
+      "finalPrice": 220,
+      "observation": "Plano com desconto de família",
+      "createdAt": "2026-02-01T00:00:00.000Z",
+      "updatedAt": "2026-09-09T20:58:26.971Z"
+    },
+    {
+      "id": "enr-2",
+      "studentId": "std-3",
+      "modalityId": "mod-6",
+      "status": "ACTIVE",
+      "startDate": "2026-03-01T00:00:00.000Z",
+      "endDate": null,
+      "contractedPrice": 190,
+      "discountPercentage": 0,
+      "discountAmount": 0,
+      "finalPrice": 190,
+      "observation": "Turma de sábados manhã",
+      "createdAt": "2026-02-20T00:00:00.000Z",
+      "updatedAt": "2026-02-20T00:00:00.000Z"
+    },
+    {
+      "id": "enr-muxjwmdx-62q57",
+      "studentId": "std-2",
+      "modalityId": "mod-7",
+      "classId": null,
+      "status": "ACTIVE",
+      "billingFrequency": "BIWEEKLY",
+      "startDate": "2026-03-01T00:00:00.000Z",
+      "endDate": null,
+      "approvedAt": "2026-10-07T03:31:38.709Z",
+      "contractedPrice": 200,
+      "discountPercentage": 10,
+      "discountAmount": 20,
+      "finalPrice": 180,
+      "observation": null,
+      "createdAt": "2026-10-07T03:31:38.709Z",
+      "updatedAt": "2026-10-07T03:31:38.709Z"
+    }
+  ],
+  "settings": [
+    {
+      "id": "set-1",
+      "key": "studio_name",
+      "value": "FitFisio Pilates & Saúde",
+      "description": "Nome do estúdio exibido nos relatórios e recibos",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "set-2",
+      "key": "contact_phone",
+      "value": "(11) 98765-4321",
+      "description": "Telefone e WhatsApp oficial",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "set-3",
+      "key": "pix_key",
+      "value": "financeiro@fitfisio.com.br",
+      "description": "Chave Pix para pagamentos de mensalidades",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "classes": [
+    {
+      "id": "cls-1",
+      "name": "Hidro Manhã (Seg/Qua 08:00)",
+      "modalityId": "mod-3",
+      "capacity": 8,
+      "schedules": [
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "08:50"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "08:50"
+        }
+      ],
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "cls-2",
+      "name": "Hidro Tarde (Ter/Qui 16:00)",
+      "modalityId": "mod-3",
+      "capacity": 8,
+      "schedules": [
+        {
+          "dayOfWeek": 2,
+          "startTime": "16:00",
+          "endTime": "16:50"
+        },
+        {
+          "dayOfWeek": 4,
+          "startTime": "16:00",
+          "endTime": "16:50"
+        }
+      ],
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "cls-3",
+      "name": "Hidroterapia Manhã (Ter/Qui 09:00)",
+      "modalityId": "mod-4",
+      "capacity": 5,
+      "schedules": [
+        {
+          "dayOfWeek": 2,
+          "startTime": "09:00",
+          "endTime": "09:45"
+        },
+        {
+          "dayOfWeek": 4,
+          "startTime": "09:00",
+          "endTime": "09:45"
+        }
+      ],
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "cls-4",
+      "name": "Natação Adulto Manhã (Seg/Qua/Sex 07:00)",
+      "modalityId": "mod-5",
+      "capacity": 8,
+      "schedules": [
+        {
+          "dayOfWeek": 1,
+          "startTime": "07:00",
+          "endTime": "07:50"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "07:00",
+          "endTime": "07:50"
+        },
+        {
+          "dayOfWeek": 5,
+          "startTime": "07:00",
+          "endTime": "07:50"
+        }
+      ],
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "cls-5",
+      "name": "Natação Criança Tarde (Ter/Qui 15:00)",
+      "modalityId": "mod-6",
+      "capacity": 8,
+      "schedules": [
+        {
+          "dayOfWeek": 2,
+          "startTime": "15:00",
+          "endTime": "15:45"
+        },
+        {
+          "dayOfWeek": 4,
+          "startTime": "15:00",
+          "endTime": "15:45"
+        }
+      ],
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "cls-6",
+      "name": "Pilates Manhã (Seg/Qua 08:00)",
+      "modalityId": "mod-1",
+      "capacity": 4,
+      "schedules": [
+        {
+          "dayOfWeek": 1,
+          "startTime": "08:00",
+          "endTime": "09:00"
+        },
+        {
+          "dayOfWeek": 3,
+          "startTime": "08:00",
+          "endTime": "09:00"
+        }
+      ],
+      "active": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "documents": [
+    {
+      "id": "doc-muxjwmdx-aq5y3",
+      "studentId": "std-2",
+      "enrollmentId": "enr-muxjwmdx-62q57",
+      "type": "RECEIPT",
+      "title": "Recibo de Prestação de Serviços - Academia",
+      "content": "<h3>RECIBO DE PRESTAÇÃO DE SERVIÇO</h3><p>Declaramos para os devidos fins que o(a) aluno(a) <strong>Mariana Silva</strong> celebrou matrícula no curso/modalidade <strong>Academia</strong> junto ao <strong>FitFisio Pilates & Saúde</strong>.</p><p>Valor mensal de tabela: R$ 200.00<br/>Desconto acordado: 10% (R$ 20.00)<br/><strong>Valor final mensal: R$ 180.00</strong></p><p>Data de início: 01/03/2026</p><p>Cláusula: As mensalidades possuem vencimento mensal e garantem o acesso aos treinos e acompanhamento profissional especializado.</p><br/><br/><p>_____________________________________<br/>FitFisio Pilates & Saúde - Aline Guimarães</p>",
+      "status": "PENDING",
+      "issueDate": "2026-10-07T03:31:38.715Z",
+      "createdAt": "2026-10-07T03:31:38.715Z",
+      "updatedAt": "2026-10-07T03:31:38.715Z"
+    }
+  ],
+  "serviceReceipts": [
+    {
+      "id": "rcp-mu1qrlyq-778f2",
+      "enrollmentId": "enr-2",
+      "documentPath": "uploads/documents/receipts/recibo-servico-enr-2.pdf",
+      "status": "APPROVED",
+      "filledAt": "2026-09-14T21:15:04.562Z",
+      "approvedAt": "2026-09-14T21:15:15.759Z",
+      "observation": "Documento assinado e aprovado pela gerência.",
+      "createdAt": "2026-09-14T21:15:04.562Z",
+      "updatedAt": "2026-09-14T21:15:15.759Z"
+    },
+    {
+      "id": "rcp-muxjwmdx-abyg7",
+      "enrollmentId": "enr-muxjwmdx-62q57",
+      "documentPath": "uploads/documents/receipts/recibo-servico-enr-muxjwmdx-62q57.pdf",
+      "status": "PENDING",
+      "filledAt": "2026-10-07T03:31:38.709Z",
+      "approvedAt": null,
+      "observation": null,
+      "createdAt": "2026-10-07T03:31:38.709Z",
+      "updatedAt": "2026-10-07T03:31:38.709Z"
+    }
+  ],
+  "payments": [
+    {
+      "id": "pay-1",
+      "studentId": "std-1",
+      "enrollmentId": "enr-1",
+      "referenceMonth": 10,
+      "referenceYear": 2026,
+      "dueDate": "2026-10-10T00:00:00.000Z",
+      "amount": 220,
+      "discountAmount": 22,
+      "finalAmount": 198,
+      "method": null,
+      "status": "PENDING",
+      "paidAt": null,
+      "transactionId": null,
+      "receiptGenerated": false,
+      "observation": "Mensalidade de Pilates - Outubro/2026",
+      "createdAt": "2026-10-01T00:00:00.000Z",
+      "updatedAt": "2026-10-01T00:00:00.000Z"
+    },
+    {
+      "id": "pay-2",
+      "studentId": "std-1",
+      "enrollmentId": "enr-1",
+      "referenceMonth": 9,
+      "referenceYear": 2026,
+      "dueDate": "2026-09-10T00:00:00.000Z",
+      "amount": 220,
+      "discountAmount": 22,
+      "finalAmount": 198,
+      "method": "PIX",
+      "status": "PAID",
+      "paidAt": "2026-09-08T14:30:00.000Z",
+      "transactionId": "E2E-987123654",
+      "receiptGenerated": true,
+      "observation": "Mensalidade de Pilates - Setembro/2026",
+      "createdAt": "2026-09-01T00:00:00.000Z",
+      "updatedAt": "2026-09-08T14:30:00.000Z"
+    },
+    {
+      "id": "pay-3",
+      "studentId": "std-3",
+      "enrollmentId": "enr-2",
+      "referenceMonth": 10,
+      "referenceYear": 2026,
+      "dueDate": "2026-10-10T00:00:00.000Z",
+      "amount": 190,
+      "discountAmount": 0,
+      "finalAmount": 190,
+      "method": null,
+      "status": "PENDING",
+      "paidAt": null,
+      "transactionId": null,
+      "receiptGenerated": false,
+      "observation": "Mensalidade de Natação Criança - Outubro/2026",
+      "createdAt": "2026-10-01T00:00:00.000Z",
+      "updatedAt": "2026-10-01T00:00:00.000Z"
+    },
+    {
+      "id": "pay-muxjwskc-enp8f",
+      "studentId": "std-2",
+      "enrollmentId": "enr-muxjwmdx-62q57",
+      "referenceMonth": 3,
+      "referenceYear": 2026,
+      "period": "FIRST_FORTNIGHT",
+      "dueDate": "2026-03-10T00:00:00.000Z",
+      "amount": 100,
+      "discountAmount": 10,
+      "finalAmount": 90,
+      "method": "PIX",
+      "status": "PAID",
+      "paidAt": "2026-10-07T03:31:55.419Z",
+      "transactionId": "PIX-12345",
+      "receiptGenerated": false,
+      "observation": "Mensalidade de Academia (1ª quinzena).",
+      "createdAt": "2026-10-07T03:31:46.716Z",
+      "updatedAt": "2026-10-07T03:31:55.419Z"
+    },
+    {
+      "id": "pay-muxjwskc-4j7ze",
+      "studentId": "std-2",
+      "enrollmentId": "enr-muxjwmdx-62q57",
+      "referenceMonth": 3,
+      "referenceYear": 2026,
+      "period": "SECOND_FORTNIGHT",
+      "dueDate": "2026-03-25T00:00:00.000Z",
+      "amount": 100,
+      "discountAmount": 10,
+      "finalAmount": 90,
+      "method": null,
+      "status": "PENDING",
+      "paidAt": null,
+      "transactionId": null,
+      "receiptGenerated": false,
+      "observation": "Mensalidade de Academia (2ª quinzena).",
+      "createdAt": "2026-10-07T03:31:46.716Z",
+      "updatedAt": "2026-10-07T03:31:46.716Z"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "notif-1",
+      "userId": "usr-1",
+      "studentId": "std-1",
+      "type": "SYSTEM",
+      "channel": "SYSTEM",
+      "title": "Sistema Financeiro Ativo",
+      "message": "O módulo financeiro do FitFisio está pronto para gerenciar cobranças em PIX, Cartão e Dinheiro.",
+      "status": "PENDING",
+      "readAt": null,
+      "createdAt": "2026-10-01T00:00:00.000Z",
+      "updatedAt": "2026-10-01T00:00:00.000Z"
+    }
+  ]
+}

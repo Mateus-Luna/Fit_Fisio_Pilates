@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import {
+  classesService,
+  type Class,
+  type ClassSchedule,
+} from '../../services/classes.service';
+import {
   modalitiesService,
   type Modality,
 } from '../../services/modalities.service';
@@ -59,6 +64,193 @@ export default function ModalityPage() {
   const [saveError, setSaveError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState('');
 
+  // Estados para Horários / Turmas
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [editingClass, setEditingClass] = useState<Class | null>(null);
+  const [scheduleName, setScheduleName] = useState('');
+  const [scheduleCapacity, setScheduleCapacity] = useState('');
+  const [scheduleDayOfWeek, setScheduleDayOfWeek] = useState<number>(1);
+  const [scheduleStartTime, setScheduleStartTime] = useState('08:00');
+  const [scheduleEndTime, setScheduleEndTime] = useState('08:50');
+  const [scheduleActive, setScheduleActive] = useState(true);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleError, setScheduleError] = useState('');
+  const [scheduleFeedback, setScheduleFeedback] = useState('');
+
+  const SCHEDULE_MODALITY_SLUGS = [
+    'hidroginastica',
+    'hidroterapia',
+    'natacao-adulto',
+    'natacao-crianca',
+    'fisioterapia',
+  ];
+
+  const allowsSchedules = Boolean(
+    modality?.requiresClass ||
+      (slug && SCHEDULE_MODALITY_SLUGS.includes(slug)) ||
+      (modality && SCHEDULE_MODALITY_SLUGS.includes(slugify(modality.name)))
+  );
+
+  async function reloadClasses(modalityId: string) {
+    try {
+      const data = await classesService.findAll(modalityId);
+      setClasses(data);
+    } catch (e) {
+      console.error('Erro ao recarregar turmas:', e);
+    }
+  }
+
+  function handleOpenCreateSchedule() {
+    setEditingClass(null);
+    setScheduleName('');
+    setScheduleCapacity(modality?.capacity ? String(modality.capacity) : '8');
+    setScheduleDayOfWeek(1);
+    setScheduleStartTime('08:00');
+    setScheduleEndTime('08:50');
+    setScheduleActive(true);
+    setScheduleError('');
+    setIsScheduleModalOpen(true);
+  }
+
+  function handleOpenEditSchedule(c: Class) {
+    setEditingClass(c);
+    setScheduleName(c.name);
+    setScheduleCapacity(c.capacity ? String(c.capacity) : '');
+    const firstSched = c.schedules && c.schedules[0];
+    setScheduleDayOfWeek(firstSched ? firstSched.dayOfWeek : 1);
+    setScheduleStartTime(firstSched ? firstSched.startTime : '08:00');
+    setScheduleEndTime(firstSched ? firstSched.endTime : '08:50');
+    setScheduleActive(c.active);
+    setScheduleError('');
+    setIsScheduleModalOpen(true);
+  }
+
+  async function handleSaveSchedule(e: React.FormEvent) {
+    e.preventDefault();
+    if (!modality) return;
+
+    if (!scheduleName.trim()) {
+      setScheduleError('Informe a identificação da turma ou horário.');
+      return;
+    }
+
+    if (!scheduleStartTime || !scheduleEndTime) {
+      setScheduleError('Informe os horários de início e término.');
+      return;
+    }
+
+    if (scheduleStartTime >= scheduleEndTime) {
+      setScheduleError('O horário de início deve ser anterior ao de término.');
+      return;
+    }
+
+    const capNum = scheduleCapacity ? Number(scheduleCapacity) : null;
+    if (capNum && capNum < 1) {
+      setScheduleError('A capacidade de alunos deve ser pelo menos 1.');
+      return;
+    }
+
+    if (modality.capacity && capNum && capNum > modality.capacity) {
+      setScheduleError(
+        `A capacidade (${capNum}) não pode ultrapassar o limite configurado na modalidade (${modality.capacity}).`
+      );
+      return;
+    }
+
+    // Verificar conflito de horários com outras turmas desta modalidade
+    const otherClasses = classes.filter((c) => c.id !== editingClass?.id && c.active);
+    const hasConflict = otherClasses.some((c) =>
+      (c.schedules || []).some(
+        (s) =>
+          s.dayOfWeek === scheduleDayOfWeek &&
+          scheduleStartTime < s.endTime &&
+          scheduleEndTime > s.startTime
+      )
+    );
+    if (hasConflict) {
+      const confirmConflict = window.confirm(
+        'Atenção: Já existe outro horário cadastrado para este mesmo dia da semana e faixa horária. Deseja prosseguir mesmo assim?'
+      );
+      if (!confirmConflict) return;
+    }
+
+    try {
+      setScheduleLoading(true);
+      setScheduleError('');
+
+      const schedulesPayload: ClassSchedule[] = [
+        {
+          dayOfWeek: scheduleDayOfWeek,
+          startTime: scheduleStartTime,
+          endTime: scheduleEndTime,
+        },
+      ];
+
+      if (editingClass) {
+        await classesService.update(editingClass.id, {
+          name: scheduleName.trim(),
+          capacity: capNum,
+          schedules: schedulesPayload,
+          active: scheduleActive,
+        });
+        setScheduleFeedback('Horário atualizado com sucesso!');
+      } else {
+        await classesService.create({
+          name: scheduleName.trim(),
+          modalityId: modality.id,
+          capacity: capNum,
+          schedules: schedulesPayload,
+          active: scheduleActive,
+        });
+        setScheduleFeedback('Horário cadastrado com sucesso!');
+      }
+
+      setIsScheduleModalOpen(false);
+      await reloadClasses(modality.id);
+      setTimeout(() => setScheduleFeedback(''), 4000);
+    } catch (err: any) {
+      setScheduleError(err?.response?.data?.message || 'Erro ao salvar horário.');
+    } finally {
+      setScheduleLoading(false);
+    }
+  }
+
+  async function handleToggleActiveClass(c: Class) {
+    if (!modality) return;
+    try {
+      await classesService.update(c.id, { active: !c.active });
+      await reloadClasses(modality.id);
+      setScheduleFeedback(`Horário ${!c.active ? 'ativado' : 'desativado'} com sucesso.`);
+      setTimeout(() => setScheduleFeedback(''), 4000);
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Erro ao alterar status do horário.');
+    }
+  }
+
+  async function handleDeleteClass(c: Class) {
+    if (!modality) return;
+    if (c.enrolledCount && c.enrolledCount > 0) {
+      alert(
+        `Não é possível excluir esta turma/horário pois existem ${c.enrolledCount} aluno(s) vinculados a ela.`
+      );
+      return;
+    }
+
+    if (!window.confirm(`Deseja realmente excluir a turma/horário "${c.name}"?`)) {
+      return;
+    }
+
+    try {
+      await classesService.remove(c.id);
+      await reloadClasses(modality.id);
+      setScheduleFeedback('Horário excluído com sucesso.');
+      setTimeout(() => setScheduleFeedback(''), 4000);
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Erro ao excluir horário.');
+    }
+  }
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -82,6 +274,13 @@ export default function ModalityPage() {
         setModality(found);
         setStudents(studentsData);
         initFormValues(found);
+
+        try {
+          const classesData = await classesService.findAll(found.id);
+          setClasses(classesData);
+        } catch {
+          setClasses([]);
+        }
       } catch {
         setError('Não foi possível carregar as informações da modalidade.');
       } finally {
@@ -490,6 +689,231 @@ export default function ModalityPage() {
             </div>
           </div>
 
+          {/* Seção de Gerenciamento de Horários e Turmas (Exclusiva para modalidades com horários) */}
+          {allowsSchedules && (
+            <div
+              style={{
+                marginBottom: '28px',
+                padding: '20px',
+                background: '#ffffff',
+                borderRadius: '12px',
+                border: '1px solid #e2e8f0',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '16px',
+                  borderBottom: '1px solid #f1f5f9',
+                  paddingBottom: '12px',
+                  flexWrap: 'wrap',
+                  gap: '10px',
+                }}
+              >
+                <div>
+                  <h3
+                    style={{
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      margin: 0,
+                      color: '#0f172a',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <span>📅</span>
+                    Horários e Turmas Disponíveis ({classes.length})
+                  </h3>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                    Cadastre e organize as faixas de horário e turmas específicas para {modality.name}.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleOpenCreateSchedule}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: '#ffffff',
+                    backgroundColor: '#0d9488',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  + Novo Horário / Turma
+                </button>
+              </div>
+
+              {scheduleFeedback && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    marginBottom: '14px',
+                    borderRadius: '8px',
+                    backgroundColor: '#ecfdf5',
+                    color: '#065f46',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    border: '1px solid #a7f3d0',
+                  }}
+                >
+                  ✓ {scheduleFeedback}
+                </div>
+              )}
+
+              {classes.length === 0 ? (
+                <div
+                  style={{
+                    background: '#f8fafc',
+                    padding: '24px',
+                    borderRadius: '8px',
+                    border: '1px dashed #cbd5e1',
+                    textAlign: 'center',
+                    color: '#64748b',
+                    fontSize: '13px',
+                  }}
+                >
+                  <p style={{ margin: '0 0 8px 0', fontWeight: 600, color: '#334155' }}>
+                    Nenhum horário cadastrado para esta modalidade.
+                  </p>
+                  <p style={{ margin: 0, fontSize: '12px' }}>
+                    Clique no botão acima para adicionar turmas com dia da semana, faixa de horário e capacidade.
+                  </p>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                    gap: '12px',
+                  }}
+                >
+                  {classes.map((cls) => {
+                    const sched = cls.schedules && cls.schedules[0];
+                    const dayName = sched ? ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][sched.dayOfWeek] : 'Dia flexível';
+                    const timeRange = sched ? `${sched.startTime} - ${sched.endTime}` : 'Sem horário fixo';
+                    const isFull = cls.capacity ? (cls.enrolledCount || 0) >= cls.capacity : false;
+
+                    return (
+                      <div
+                        key={cls.id}
+                        style={{
+                          padding: '14px',
+                          borderRadius: '10px',
+                          border: cls.active ? '1px solid #e2e8f0' : '1px dashed #cbd5e1',
+                          background: cls.active ? '#f8fafc' : '#f1f5f9',
+                          opacity: cls.active ? 1 : 0.75,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          gap: '12px',
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <strong style={{ fontSize: '14px', color: '#1e293b' }}>
+                              {cls.name}
+                            </strong>
+                            <span
+                              style={{
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '9999px',
+                                backgroundColor: cls.active ? '#dcfce7' : '#f1f5f9',
+                                color: cls.active ? '#166534' : '#64748b',
+                                border: `1px solid ${cls.active ? '#bbf7d0' : '#e2e8f0'}`,
+                              }}
+                            >
+                              {cls.active ? 'Ativo' : 'Inativo'}
+                            </span>
+                          </div>
+
+                          <div style={{ fontSize: '12px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div>
+                              <span style={{ fontWeight: 600, color: '#0d9488' }}>{dayName}</span> • {timeRange}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>Vagas: </span>
+                              <strong style={{ color: isFull ? '#dc2626' : '#15803d' }}>
+                                {cls.enrolledCount || 0} / {cls.capacity || 'Ilimitado'}
+                              </strong>
+                              {isFull && (
+                                <span style={{ fontSize: '10px', color: '#dc2626', fontWeight: 600, background: '#fee2e2', padding: '1px 6px', borderRadius: '4px' }}>
+                                  Esgotado
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleActiveClass(cls)}
+                            style={{
+                              fontSize: '11px',
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              background: '#ffffff',
+                              color: '#475569',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {cls.active ? 'Desativar' : 'Ativar'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditSchedule(cls)}
+                            style={{
+                              fontSize: '11px',
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              border: '1px solid #0d9488',
+                              background: '#f0fdfa',
+                              color: '#0d9488',
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                            }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteClass(cls)}
+                            style={{
+                              fontSize: '11px',
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              border: '1px solid #fecaca',
+                              background: '#fef2f2',
+                              color: '#dc2626',
+                              cursor: 'pointer',
+                            }}
+                            title={cls.enrolledCount && cls.enrolledCount > 0 ? 'Não é possível excluir com alunos vinculados' : 'Excluir horário'}
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <div
               style={{
@@ -619,6 +1043,219 @@ export default function ModalityPage() {
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Cadastro / Edição de Horário */}
+      {isScheduleModalOpen && modality && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            zIndex: 9999,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '520px',
+              width: '100%',
+              padding: '24px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
+                {editingClass ? 'Editar Horário / Turma' : `Novo Horário para ${modality.name}`}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsScheduleModalOpen(false)}
+                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#94a3b8' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {scheduleError && (
+              <div style={{ padding: '8px 12px', marginBottom: '14px', borderRadius: '8px', backgroundColor: '#fee2e2', color: '#b91c1c', fontSize: '12px' }}>
+                ⚠️ {scheduleError}
+              </div>
+            )}
+
+            <form onSubmit={handleSaveSchedule} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                  Identificação da Turma ou Horário *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={scheduleName}
+                  onChange={(e) => setScheduleName(e.target.value)}
+                  placeholder="Ex: Turma Manhã 1, Natação Adulto Ter/Qui 07:00"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '13px',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                    Dia da Semana *
+                  </label>
+                  <select
+                    value={scheduleDayOfWeek}
+                    onChange={(e) => setScheduleDayOfWeek(Number(e.target.value))}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '13px',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <option value={1}>Segunda-feira</option>
+                    <option value={2}>Terça-feira</option>
+                    <option value={3}>Quarta-feira</option>
+                    <option value={4}>Quinta-feira</option>
+                    <option value={5}>Sexta-feira</option>
+                    <option value={6}>Sábado</option>
+                    <option value={0}>Domingo</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                    Capacidade de Alunos
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={modality.capacity || undefined}
+                    value={scheduleCapacity}
+                    onChange={(e) => setScheduleCapacity(e.target.value)}
+                    placeholder={modality.capacity ? `Máx: ${modality.capacity}` : 'Ex: 8'}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '13px',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  {modality.capacity && (
+                    <small style={{ fontSize: '11px', color: '#64748b', display: 'block', marginTop: '2px' }}>
+                      Limite da modalidade: {modality.capacity} alunos
+                    </small>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                    Horário de Início *
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={scheduleStartTime}
+                    onChange={(e) => setScheduleStartTime(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '13px',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
+                    Horário de Término *
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={scheduleEndTime}
+                    onChange={(e) => setScheduleEndTime(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '13px',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#334155', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={scheduleActive}
+                    onChange={(e) => setScheduleActive(e.target.checked)}
+                  />
+                  <span>Horário ativo para novas matrículas</span>
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsScheduleModalOpen(false)}
+                  disabled={scheduleLoading}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#475569',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={scheduleLoading}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: '#0d9488',
+                    color: '#ffffff',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {scheduleLoading ? 'Salvando...' : 'Salvar Horário'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

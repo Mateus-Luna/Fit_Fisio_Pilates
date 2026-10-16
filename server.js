@@ -957,6 +957,165 @@ app.get(['/classes/:id', '/api/classes/:id'], (req, res) => {
   res.json({ ...c, modality, enrolledCount });
 });
 
+app.post(['/classes', '/api/classes'], (req, res) => {
+  const { name, modalityId, capacity, schedules, active } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ message: 'O nome/identificação da turma é obrigatório.' });
+  }
+  if (!modalityId) {
+    return res.status(400).json({ message: 'A modalidade é obrigatória.' });
+  }
+  const modality = (db.modalities || []).find((m) => m.id === modalityId);
+  if (!modality) {
+    return res.status(404).json({ message: 'Modalidade não encontrada.' });
+  }
+  if (!modality.active) {
+    return res.status(400).json({ message: 'Não é possível criar horários para uma modalidade inativa.' });
+  }
+
+  let finalCapacity = capacity ? Number(capacity) : null;
+  if (modality.capacity && finalCapacity && finalCapacity > modality.capacity) {
+    return res.status(400).json({
+      message: `A capacidade da turma (${finalCapacity}) não pode exceder a capacidade máxima configurada para a modalidade (${modality.capacity}).`,
+    });
+  }
+  if (!finalCapacity && modality.capacity) {
+    finalCapacity = modality.capacity;
+  }
+
+  const validSchedules = Array.isArray(schedules)
+    ? schedules.map((s) => ({
+        dayOfWeek: Number(s.dayOfWeek),
+        startTime: String(s.startTime || '').trim(),
+        endTime: String(s.endTime || '').trim(),
+      }))
+    : [];
+
+  for (const s of validSchedules) {
+    if (!/^\d{2}:\d{2}$/.test(s.startTime) || !/^\d{2}:\d{2}$/.test(s.endTime)) {
+      return res.status(400).json({ message: 'Os horários devem estar no formato HH:mm (ex: 08:00).' });
+    }
+    if (s.startTime >= s.endTime) {
+      return res.status(400).json({ message: 'O horário de início deve ser anterior ao horário de término.' });
+    }
+    if (s.dayOfWeek < 0 || s.dayOfWeek > 6) {
+      return res.status(400).json({ message: 'Dia da semana inválido (0=Dom a 6=Sáb).' });
+    }
+  }
+
+  const newClass = {
+    id: generateId('cls'),
+    name: name.trim(),
+    modalityId,
+    capacity: finalCapacity,
+    schedules: validSchedules,
+    active: active !== undefined ? Boolean(active) : true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (!db.classes) db.classes = [];
+  db.classes.push(newClass);
+  saveDb(db);
+
+  res.status(201).json({
+    ...newClass,
+    modality,
+    enrolledCount: 0,
+  });
+});
+
+app.patch(['/classes/:id', '/api/classes/:id'], (req, res) => {
+  const cls = (db.classes || []).find((c) => c.id === req.params.id);
+  if (!cls) return res.status(404).json({ message: 'Turma não encontrada.' });
+
+  const { name, modalityId, capacity, schedules, active } = req.body;
+
+  if (modalityId && modalityId !== cls.modalityId) {
+    const mod = (db.modalities || []).find((m) => m.id === modalityId);
+    if (!mod) return res.status(404).json({ message: 'Modalidade não encontrada.' });
+    cls.modalityId = modalityId;
+  }
+
+  const modality = (db.modalities || []).find((m) => m.id === cls.modalityId) || null;
+
+  if (capacity !== undefined) {
+    const newCap = capacity ? Number(capacity) : null;
+    const enrolledCount = (db.enrollments || []).filter(
+      (e) => e.classId === cls.id && ['ACTIVE', 'AWAITING_APPROVAL', 'PENDING_DOCUMENTATION'].includes(e.status)
+    ).length;
+    if (newCap !== null && newCap < enrolledCount) {
+      return res.status(400).json({
+        message: `A capacidade (${newCap}) não pode ser inferior ao número de alunos já matriculados (${enrolledCount}).`,
+      });
+    }
+    if (modality && modality.capacity && newCap && newCap > modality.capacity) {
+      return res.status(400).json({
+        message: `A capacidade da turma (${newCap}) não pode exceder a capacidade da modalidade (${modality.capacity}).`,
+      });
+    }
+    cls.capacity = newCap;
+  }
+
+  if (name !== undefined && name.trim()) {
+    cls.name = name.trim();
+  }
+
+  if (active !== undefined) {
+    cls.active = Boolean(active);
+  }
+
+  if (schedules !== undefined && Array.isArray(schedules)) {
+    const validSchedules = schedules.map((s) => ({
+      dayOfWeek: Number(s.dayOfWeek),
+      startTime: String(s.startTime || '').trim(),
+      endTime: String(s.endTime || '').trim(),
+    }));
+    for (const s of validSchedules) {
+      if (!/^\d{2}:\d{2}$/.test(s.startTime) || !/^\d{2}:\d{2}$/.test(s.endTime)) {
+        return res.status(400).json({ message: 'Os horários devem estar no formato HH:mm (ex: 08:00).' });
+      }
+      if (s.startTime >= s.endTime) {
+        return res.status(400).json({ message: 'O horário de início deve ser anterior ao horário de término.' });
+      }
+    }
+    cls.schedules = validSchedules;
+  }
+
+  cls.updatedAt = new Date().toISOString();
+  saveDb(db);
+
+  const enrolledCount = (db.enrollments || []).filter(
+    (e) => e.classId === cls.id && ['ACTIVE', 'AWAITING_APPROVAL', 'PENDING_DOCUMENTATION'].includes(e.status)
+  ).length;
+
+  res.json({
+    ...cls,
+    modality,
+    enrolledCount,
+  });
+});
+
+app.delete(['/classes/:id', '/api/classes/:id'], (req, res) => {
+  const index = (db.classes || []).findIndex((c) => c.id === req.params.id);
+  if (index === -1) return res.status(404).json({ message: 'Turma não encontrada.' });
+
+  const cls = db.classes[index];
+  const enrolledCount = (db.enrollments || []).filter(
+    (e) => e.classId === cls.id && ['ACTIVE', 'AWAITING_APPROVAL', 'PENDING_DOCUMENTATION', 'SUSPENDED'].includes(e.status)
+  ).length;
+
+  if (enrolledCount > 0) {
+    return res.status(400).json({
+      message: `Não é possível excluir este horário/turma pois existem ${enrolledCount} aluno(s) com matrícula vinculada a ele.`,
+    });
+  }
+
+  db.classes.splice(index, 1);
+  saveDb(db);
+  res.json({ message: 'Horário/turma excluído com sucesso.' });
+});
+
 // -------------------------------------------------------------
 // DISCOUNTS ROUTES
 // -------------------------------------------------------------
@@ -1039,12 +1198,35 @@ app.post(['/enrollments', '/api/enrollments'], (req, res) => {
     return res.status(409).json({ message: 'O aluno já possui uma matrícula ativa ou em andamento nessa modalidade.' });
   }
 
-  // Validação de turma se informada
+  // Validação de turma se informada ou obrigatória
+  const isScheduleModality = ['hidroginastica', 'hidroterapia', 'natacao-adulto', 'natacao-crianca', 'fisioterapia'].includes(
+    (modality.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  );
+  if ((modality.requiresClass || isScheduleModality) && !classId) {
+    const hasAnyClasses = (db.classes || []).some((c) => c.modalityId === modalityId && c.active);
+    if (hasAnyClasses) {
+      return res.status(400).json({ message: 'Esta modalidade exige a seleção de um horário/turma cadastrado.' });
+    }
+  }
+
   if (classId) {
     const cls = (db.classes || []).find((c) => c.id === classId);
     if (!cls) return res.status(404).json({ message: 'Turma não encontrada.' });
     if (cls.modalityId !== modalityId) {
       return res.status(400).json({ message: 'A turma selecionada não pertence à modalidade da matrícula.' });
+    }
+    if (!cls.active) {
+      return res.status(400).json({ message: 'A turma/horário selecionado está inativo.' });
+    }
+    if (cls.capacity) {
+      const enrolledCount = (db.enrollments || []).filter(
+        (e) => e.classId === cls.id && ['ACTIVE', 'AWAITING_APPROVAL', 'PENDING_DOCUMENTATION', 'SUSPENDED'].includes(e.status)
+      ).length;
+      if (enrolledCount >= cls.capacity) {
+        return res.status(400).json({
+          message: `A turma/horário selecionado não possui vagas disponíveis (${enrolledCount}/${cls.capacity}).`,
+        });
+      }
     }
   }
 
@@ -1130,6 +1312,27 @@ app.patch(['/enrollments/:id', '/api/enrollments/:id'], (req, res) => {
   }
 
   if (classId !== undefined) {
+    if (classId) {
+      const cls = (db.classes || []).find((c) => c.id === classId);
+      if (!cls) return res.status(404).json({ message: 'Turma não encontrada.' });
+      const targetModalityId = modalityId || enrollment.modalityId;
+      if (cls.modalityId !== targetModalityId) {
+        return res.status(400).json({ message: 'A turma selecionada não pertence à modalidade da matrícula.' });
+      }
+      if (!cls.active && cls.id !== enrollment.classId) {
+        return res.status(400).json({ message: 'A turma/horário selecionado está inativo.' });
+      }
+      if (cls.capacity && cls.id !== enrollment.classId) {
+        const enrolledCount = (db.enrollments || []).filter(
+          (e) => e.classId === cls.id && e.id !== enrollment.id && ['ACTIVE', 'AWAITING_APPROVAL', 'PENDING_DOCUMENTATION', 'SUSPENDED'].includes(e.status)
+        ).length;
+        if (enrolledCount >= cls.capacity) {
+          return res.status(400).json({
+            message: `A turma/horário selecionado não possui vagas disponíveis (${enrolledCount}/${cls.capacity}).`,
+          });
+        }
+      }
+    }
     enrollment.classId = classId || null;
   }
 
@@ -2221,6 +2424,89 @@ app.patch(['/payments/:id/cancel', '/api/payments/:id/cancel'], (req, res) => {
   payment.updatedAt = new Date().toISOString();
   saveDb(db);
   res.json(enrichPayment(payment));
+});
+
+// -------------------------------------------------------------
+// BACKUP & RESTORE ROUTES
+// -------------------------------------------------------------
+app.get(['/backup/export', '/api/backup/export'], (req, res) => {
+  try {
+    const backupData = {
+      version: '1.0.0',
+      appName: 'FitFisio Pilates',
+      exportedAt: new Date().toISOString(),
+      data: {
+        users: db.users || [],
+        families: db.families || [],
+        students: db.students || [],
+        modalities: db.modalities || [],
+        classes: db.classes || [],
+        enrollments: db.enrollments || [],
+        payments: db.payments || [],
+        settings: db.settings || [],
+        documents: db.documents || [],
+        serviceReceipts: db.serviceReceipts || [],
+        notifications: db.notifications || [],
+      },
+    };
+
+    const filename = `backup-fitfisio-${new Date().toISOString().slice(0, 10)}.json`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/json');
+    res.json(backupData);
+  } catch (err) {
+    console.error('Erro ao gerar backup:', err);
+    res.status(500).json({ message: 'Erro ao gerar arquivo de backup.' });
+  }
+});
+
+app.post(['/backup/restore', '/api/backup/restore'], (req, res) => {
+  try {
+    let payload = req.body;
+    if (payload.data && typeof payload.data === 'object') {
+      payload = payload.data;
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      return res.status(400).json({ message: 'Formato de arquivo de backup inválido.' });
+    }
+
+    // Criar cópia de segurança antes de restaurar
+    const safetyBackupFile = path.join(__dirname, `data_store_pre_restore_${Date.now()}.json`);
+    try {
+      fs.writeFileSync(safetyBackupFile, JSON.stringify(db, null, 2), 'utf8');
+    } catch {}
+
+    if (Array.isArray(payload.users)) db.users = payload.users;
+    if (Array.isArray(payload.families)) db.families = payload.families;
+    if (Array.isArray(payload.students)) db.students = payload.students;
+    if (Array.isArray(payload.modalities)) db.modalities = payload.modalities;
+    if (Array.isArray(payload.classes)) db.classes = payload.classes;
+    if (Array.isArray(payload.enrollments)) db.enrollments = payload.enrollments;
+    if (Array.isArray(payload.payments)) db.payments = payload.payments;
+    if (Array.isArray(payload.settings)) db.settings = payload.settings;
+    if (Array.isArray(payload.documents)) db.documents = payload.documents;
+    if (Array.isArray(payload.serviceReceipts)) db.serviceReceipts = payload.serviceReceipts;
+    if (Array.isArray(payload.notifications)) db.notifications = payload.notifications;
+
+    saveDb(db);
+
+    res.json({
+      success: true,
+      message: 'Backup restaurado com sucesso!',
+      counts: {
+        students: db.students?.length || 0,
+        modalities: db.modalities?.length || 0,
+        classes: db.classes?.length || 0,
+        enrollments: db.enrollments?.length || 0,
+        payments: db.payments?.length || 0,
+        families: db.families?.length || 0,
+      },
+    });
+  } catch (err) {
+    console.error('Erro ao restaurar backup:', err);
+    res.status(500).json({ message: 'Falha ao restaurar backup: ' + err.message });
+  }
 });
 
 // -------------------------------------------------------------

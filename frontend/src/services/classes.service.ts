@@ -32,4 +32,34 @@ export const classesService = {
     const response = await api.get<Class>(`/classes/${id}`);
     return response.data;
   },
+
+  async create(data: {
+    name: string;
+    modalityId: string;
+    capacity?: number | null;
+    schedules: ClassSchedule[];
+    active?: boolean;
+  }): Promise<Class> {
+    const response = await api.post<Class>('/classes', data);
+    return response.data;
+  },
+
+  async update(
+    id: string,
+    data: {
+      name?: string;
+      modalityId?: string;
+      capacity?: number | null;
+      schedules?: ClassSchedule[];
+      active?: boolean;
+    },
+  ): Promise<Class> {
+    const response = await api.patch<Class>(`/classes/${id}`, data);
+    return response.data;
+  },
+
+  async remove(id: string): Promise<{ message: string }> {
+    const response = await api.delete<{ message: string }>(`/classes/${id}`);
+    return response.data;
+  },
 };

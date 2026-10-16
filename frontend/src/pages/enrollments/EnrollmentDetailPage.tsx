@@ -19,7 +19,6 @@ import {
   Layers,
   Sparkles,
   FileCheck,
-  Eye,
   MapPin,
 } from '../../components/common/Icons';
 import {
@@ -123,27 +122,6 @@ export function EnrollmentDetailPage() {
     }
   };
 
-  const handleToggleSignedDocument = async (signed: boolean) => {
-    if (!id) return;
-    try {
-      setActionLoading(true);
-      await certificatesService.markAsSigned(id, signed);
-      setFeedback({
-        type: 'success',
-        text: signed
-          ? 'Contrato formal marcado como ASSINADO pelo aluno/responsável!'
-          : 'Status do contrato alterado para PENDENTE de assinatura física.',
-      });
-      await loadData();
-    } catch (err: any) {
-      setFeedback({
-        type: 'error',
-        text: err?.response?.data?.message || 'Erro ao atualizar situação de assinatura do contrato.',
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   const handleSuspend = async () => {
     if (!id) return;
@@ -870,12 +848,22 @@ export function EnrollmentDetailPage() {
                   onChange={(e) => setEditClassId(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-teal-500"
                 >
-                  <option value="">-- Sem turma específica --</option>
-                  {classes.map((cls) => (
-                    <option key={cls.id} value={cls.id}>
-                      {cls.name} (Vagas: {cls.enrolledCount || 0}/{cls.capacity})
-                    </option>
-                  ))}
+                  <option value="">-- Sem turma fixa (Livre) --</option>
+                  {classes.map((cls) => {
+                    const isCurrent = cls.id === enrollment.classId;
+                    const isFull = cls.capacity ? (cls.enrolledCount || 0) >= cls.capacity : false;
+                    const isDisabled = (!cls.active || isFull) && !isCurrent;
+                    const sched = cls.schedules && cls.schedules[0];
+                    const dayName = sched ? ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][sched.dayOfWeek] : '';
+                    const timeRange = sched ? `${sched.startTime}-${sched.endTime}` : '';
+                    const schedLabel = dayName ? `[${dayName} ${timeRange}]` : '';
+
+                    return (
+                      <option key={cls.id} value={cls.id} disabled={isDisabled}>
+                        {cls.name} {schedLabel} — {isCurrent ? '(Turma atual selecionada)' : isFull ? 'Esgotado (Sem vagas)' : `Vagas: ${cls.enrolledCount || 0}/${cls.capacity || '∞'}`} {!cls.active && !isCurrent ? '(Inativo)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 

@@ -165,8 +165,16 @@ export default function Navbar() {
             to="/classes"
             className={linkClass}
           >
+            <span>🏷️</span>
+            Turmas
+          </NavLink>
+
+          <NavLink
+            to="/schedules"
+            className={linkClass}
+          >
             <span>📅</span>
-            Turmas e horários
+            Horários
           </NavLink>
 
           <NavLink

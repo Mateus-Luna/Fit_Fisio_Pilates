@@ -265,11 +265,46 @@ export function NewEnrollmentPage() {
       return;
     }
 
+    const SCHEDULE_MODALITY_SLUGS = ['hidroginastica', 'hidroterapia', 'natacao-adulto', 'natacao-crianca', 'fisioterapia'];
+
     for (const draft of modalitiesDraft) {
       if (!draft.modalityId) {
         setErrorMessage('Selecione a modalidade em todos os itens de matrícula.');
         setSubmitting(false);
         return;
+      }
+      const selectedMod = modalities.find((m) => m.id === draft.modalityId);
+      const isScheduleMod = Boolean(
+        selectedMod &&
+          (selectedMod.requiresClass ||
+            SCHEDULE_MODALITY_SLUGS.includes(
+              (selectedMod.name || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+            ))
+      );
+
+      const availableClasses = classes.filter((c) => c.modalityId === draft.modalityId && c.active);
+      if (isScheduleMod && availableClasses.length > 0 && !draft.classId) {
+        setErrorMessage(`Por favor, selecione um horário/turma para a modalidade ${selectedMod?.name || ''}.`);
+        setSubmitting(false);
+        return;
+      }
+
+      if (draft.classId) {
+        const cls = classes.find((c) => c.id === draft.classId);
+        if (cls && !cls.active) {
+          setErrorMessage(`A turma/horário selecionado para ${selectedMod?.name || ''} está inativa.`);
+          setSubmitting(false);
+          return;
+        }
+        if (cls && cls.capacity && (cls.enrolledCount || 0) >= cls.capacity) {
+          setErrorMessage(`A turma/horário "${cls.name}" não possui vagas disponíveis (${cls.enrolledCount}/${cls.capacity}).`);
+          setSubmitting(false);
+          return;
+        }
       }
     }
 
@@ -656,6 +691,17 @@ export function NewEnrollmentPage() {
           <div className="space-y-4">
             {modalitiesDraft.map((draft, index) => {
               const selectedMod = modalities.find((m) => m.id === draft.modalityId);
+              const isScheduleMod = Boolean(
+                selectedMod &&
+                  (selectedMod.requiresClass ||
+                    ['hidroginastica', 'hidroterapia', 'natacao-adulto', 'natacao-crianca', 'fisioterapia'].includes(
+                      (selectedMod.name || '')
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, '-')
+                    ))
+              );
               const availableClasses = classes.filter((c) => c.modalityId === draft.modalityId);
               const isAlreadyEnrolled =
                 studentMode === 'EXISTING' && existingActiveModalityIds.includes(draft.modalityId);
@@ -724,23 +770,38 @@ export function NewEnrollmentPage() {
                     {/* Selecionar Turma se aplicável */}
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Turma / Horário {selectedMod?.requiresClass ? '*' : '(Opcional)'}
+                        Turma / Horário {isScheduleMod ? '*' : '(Opcional)'}
                       </label>
                       <select
                         value={draft.classId}
                         onChange={(e) => updateDraftItem(draft.tempId, 'classId', e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-teal-600"
+                        className={`w-full px-3 py-2 bg-white border rounded-lg text-sm text-slate-800 focus:ring-2 focus:ring-teal-600 ${
+                          isScheduleMod && !draft.classId && availableClasses.length > 0
+                            ? 'border-amber-300 bg-amber-50/20'
+                            : 'border-slate-200'
+                        }`}
                       >
                         <option value="">
                           {availableClasses.length === 0
-                            ? '-- Nenhuma turma específica --'
-                            : '-- Selecione a turma --'}
+                            ? '-- Nenhuma turma cadastrada para esta modalidade --'
+                            : isScheduleMod
+                            ? '-- Selecione o horário obrigatório --'
+                            : '-- Sem turma fixa (Livre) --'}
                         </option>
-                        {availableClasses.map((cls) => (
-                          <option key={cls.id} value={cls.id}>
-                            {cls.name} (Vagas: {cls.enrolledCount || 0}/{cls.capacity})
-                          </option>
-                        ))}
+                        {availableClasses.map((cls) => {
+                          const isFull = cls.capacity ? (cls.enrolledCount || 0) >= cls.capacity : false;
+                          const isDisabled = !cls.active || isFull;
+                          const sched = cls.schedules && cls.schedules[0];
+                          const dayName = sched ? ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][sched.dayOfWeek] : '';
+                          const timeRange = sched ? `${sched.startTime}-${sched.endTime}` : '';
+                          const schedLabel = dayName ? `[${dayName} ${timeRange}]` : '';
+
+                          return (
+                            <option key={cls.id} value={cls.id} disabled={isDisabled}>
+                              {cls.name} {schedLabel} — {isFull ? 'Esgotado (Sem vagas)' : `Vagas: ${cls.enrolledCount || 0}/${cls.capacity || '∞'}`} {!cls.active ? '(Inativo)' : ''}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
 
