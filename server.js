@@ -8,6 +8,10 @@ const crypto = require('node:crypto');
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 // Em produção, o Electron define FITFISIO_DATA_DIR para a pasta
 // persistente do usuário. No desenvolvimento, preservamos os caminhos atuais.
 const DATA_DIR = process.env.FITFISIO_DATA_DIR || __dirname;
@@ -2447,6 +2451,3 @@ async function startServer() {
 const serverReady = startServer();
 
 module.exports = { serverReady };
-
-
-startServer();

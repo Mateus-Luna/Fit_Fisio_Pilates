@@ -19,7 +19,9 @@ function createWindow() {
     },
   });
 
-  window.loadURL('http://127.0.0.1:3000');
+  window.loadURL('http://127.0.0.1:3000').catch((err) => {
+    console.error('Falha ao abrir a URL no BrowserWindow:', err);
+  });
 }
 
 async function startApplication() {
@@ -58,6 +60,9 @@ app.whenReady().then(startApplication).catch((error) => {
 
 app.on('before-quit', () => {
   if (serverInstance) {
+    if (typeof serverInstance.closeAllConnections === 'function') {
+      serverInstance.closeAllConnections();
+    }
     serverInstance.close();
     serverInstance = null;
   }

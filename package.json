@@ -34,5 +34,34 @@
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "pdf-lib": "^1.17.1"
+  },
+  "build": {
+    "appId": "com.fitfisio.app",
+    "productName": "FitFisio Pilates",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "server.js",
+      "frontend/dist/**/*",
+      "backend/assets/documents/RECIBO SERVICO.pdf",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/assets/documents/RECIBO SERVICO.pdf",
+        "to": "assets/documents/RECIBO SERVICO.pdf"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }
