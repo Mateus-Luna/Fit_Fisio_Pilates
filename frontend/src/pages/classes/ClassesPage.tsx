@@ -157,7 +157,8 @@ export default function ClassesPage() {
       await loadData();
       setTimeout(() => setFeedback(''), 4000);
     } catch (err: any) {
-      setFormError(err?.response?.data?.message || 'Erro ao salvar turma.');
+      const msg = err?.response?.data?.message;
+      setFormError(Array.isArray(msg) ? msg.join(', ') : (msg || 'Erro ao salvar turma.'));
     } finally {
       setFormSaving(false);
     }

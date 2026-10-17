@@ -210,7 +210,8 @@ export default function ModalityPage() {
       await reloadClasses(modality.id);
       setTimeout(() => setScheduleFeedback(''), 4000);
     } catch (err: any) {
-      setScheduleError(err?.response?.data?.message || 'Erro ao salvar horário.');
+      const msg = err?.response?.data?.message;
+      setScheduleError(Array.isArray(msg) ? msg.join(', ') : (msg || 'Erro ao salvar horário.'));
     } finally {
       setScheduleLoading(false);
     }

@@ -32,6 +32,10 @@ export class UpdateClassScheduleDto {
   @IsOptional()
   @IsString()
   room?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
 }
 
 export class UpdateClassDto {

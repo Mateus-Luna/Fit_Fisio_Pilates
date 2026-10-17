@@ -46,6 +46,7 @@ export class ClassesService {
         name: createClassDto.name.trim(),
         modalityId: createClassDto.modalityId,
         capacity: createClassDto.capacity,
+        active: createClassDto.active !== undefined ? createClassDto.active : true,
         schedules: createClassDto.schedules
           ? {
               create: createClassDto.schedules.map(
@@ -54,6 +55,7 @@ export class ClassesService {
                   startTime: schedule.startTime,
                   endTime: schedule.endTime,
                   room: schedule.room?.trim() || null,
+                  active: schedule.active !== undefined ? schedule.active : true,
                 }),
               ),
             }

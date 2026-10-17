@@ -1087,6 +1087,172 @@ app.get(['/classes/:id', '/api/classes/:id'], (req, res) => {
   res.json({ ...c, modality, enrolledCount });
 });
 
+app.post(['/classes', '/api/classes'], (req, res) => {
+  const { name, modalityId, capacity, schedules, active } = req.body || {};
+
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ message: 'O nome da turma é obrigatório.' });
+  }
+
+  if (!modalityId || typeof modalityId !== 'string') {
+    return res.status(400).json({ message: 'A modalidade é obrigatória.' });
+  }
+
+  const modality = (db.modalities || []).find((m) => m.id === modalityId);
+  if (!modality) {
+    return res.status(404).json({ message: 'Modalidade não encontrada.' });
+  }
+
+  if (!modality.active) {
+    return res.status(400).json({ message: 'Não é possível criar turma para uma modalidade inativa.' });
+  }
+
+  const capNum = capacity !== null && capacity !== undefined && capacity !== '' ? Number(capacity) : null;
+  if (capNum !== null && capNum < 1) {
+    return res.status(400).json({ message: 'A capacidade deve ser pelo menos 1.' });
+  }
+
+  if (modality.capacity && capNum && capNum > modality.capacity) {
+    return res.status(400).json({
+      message: `A capacidade (${capNum}) não pode exceder o limite da modalidade (${modality.capacity}).`,
+    });
+  }
+
+  const validatedSchedules = Array.isArray(schedules)
+    ? schedules.map((s) => ({
+        dayOfWeek: Number(s.dayOfWeek),
+        startTime: String(s.startTime || '').trim(),
+        endTime: String(s.endTime || '').trim(),
+        room: s.room ? String(s.room).trim() : null,
+        active: s.active !== false,
+      }))
+    : [];
+
+  for (const s of validatedSchedules) {
+    if (!/^\d{2}:\d{2}$/.test(s.startTime) || !/^\d{2}:\d{2}$/.test(s.endTime)) {
+      return res.status(400).json({ message: 'Os horários devem estar no formato HH:mm.' });
+    }
+    if (s.startTime >= s.endTime) {
+      return res.status(400).json({ message: 'O horário inicial deve ser anterior ao horário final.' });
+    }
+  }
+
+  const now = new Date().toISOString();
+  const newClass = {
+    id: generateId('cls'),
+    name: name.trim(),
+    modalityId,
+    capacity: capNum !== null ? capNum : (modality.capacity || null),
+    schedules: validatedSchedules,
+    active: active !== false,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  db.classes = db.classes || [];
+  db.classes.push(newClass);
+  saveDb(db);
+
+  res.status(201).json({
+    ...newClass,
+    modality,
+    enrolledCount: 0,
+  });
+});
+
+app.patch(['/classes/:id', '/api/classes/:id'], (req, res) => {
+  const c = (db.classes || []).find((item) => item.id === req.params.id);
+  if (!c) return res.status(404).json({ message: 'Turma não encontrada.' });
+
+  const { name, modalityId, capacity, schedules, active } = req.body || {};
+
+  if (name !== undefined) {
+    if (typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ message: 'O nome da turma não pode ser vazio.' });
+    }
+    c.name = name.trim();
+  }
+
+  if (modalityId !== undefined) {
+    const modality = (db.modalities || []).find((m) => m.id === modalityId);
+    if (!modality) return res.status(404).json({ message: 'Modalidade não encontrada.' });
+    c.modalityId = modalityId;
+  }
+
+  if (capacity !== undefined) {
+    const capNum = capacity !== null && capacity !== '' ? Number(capacity) : null;
+    if (capNum !== null && capNum < 1) {
+      return res.status(400).json({ message: 'A capacidade deve ser pelo menos 1.' });
+    }
+    const currentEnrolled = (db.enrollments || []).filter(
+      (e) => e.classId === c.id && ['ACTIVE', 'AWAITING_APPROVAL', 'PENDING_DOCUMENTATION', 'SUSPENDED'].includes(e.status),
+    ).length;
+    if (capNum !== null && capNum < currentEnrolled) {
+      return res.status(400).json({
+        message: `A capacidade (${capNum}) não pode ser menor que o total de alunos vinculados (${currentEnrolled}).`,
+      });
+    }
+    c.capacity = capNum;
+  }
+
+  if (schedules !== undefined && Array.isArray(schedules)) {
+    const validatedSchedules = schedules.map((s) => ({
+      dayOfWeek: Number(s.dayOfWeek),
+      startTime: String(s.startTime || '').trim(),
+      endTime: String(s.endTime || '').trim(),
+      room: s.room ? String(s.room).trim() : null,
+      active: s.active !== false,
+    }));
+    for (const s of validatedSchedules) {
+      if (!/^\d{2}:\d{2}$/.test(s.startTime) || !/^\d{2}:\d{2}$/.test(s.endTime)) {
+        return res.status(400).json({ message: 'Os horários devem estar no formato HH:mm.' });
+      }
+      if (s.startTime >= s.endTime) {
+        return res.status(400).json({ message: 'O horário inicial deve ser anterior ao horário final.' });
+      }
+    }
+    c.schedules = validatedSchedules;
+  }
+
+  if (active !== undefined) {
+    c.active = Boolean(active);
+  }
+
+  c.updatedAt = new Date().toISOString();
+  saveDb(db);
+
+  const modality = (db.modalities || []).find((m) => m.id === c.modalityId) || null;
+  const enrolledCount = (db.enrollments || []).filter(
+    (e) => e.classId === c.id && ['ACTIVE', 'AWAITING_APPROVAL', 'PENDING_DOCUMENTATION'].includes(e.status),
+  ).length;
+
+  res.json({
+    ...c,
+    modality,
+    enrolledCount,
+  });
+});
+
+app.delete(['/classes/:id', '/api/classes/:id'], (req, res) => {
+  const index = (db.classes || []).findIndex((item) => item.id === req.params.id);
+  if (index === -1) return res.status(404).json({ message: 'Turma não encontrada.' });
+
+  const enrolledCount = (db.enrollments || []).filter(
+    (e) => e.classId === req.params.id && ['ACTIVE', 'AWAITING_APPROVAL', 'PENDING_DOCUMENTATION'].includes(e.status),
+  ).length;
+
+  if (enrolledCount > 0) {
+    return res.status(400).json({
+      message: `Não é possível excluir esta turma pois existem ${enrolledCount} aluno(s) vinculados a ela.`,
+    });
+  }
+
+  db.classes.splice(index, 1);
+  saveDb(db);
+
+  res.json({ message: 'Turma excluída com sucesso.' });
+});
+
 // -------------------------------------------------------------
 // DISCOUNTS ROUTES
 // -------------------------------------------------------------

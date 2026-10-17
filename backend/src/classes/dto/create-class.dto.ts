@@ -1,7 +1,9 @@
 import {
   IsArray,
+  IsBoolean,
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsUUID,
   IsString,
   ValidateNested,
@@ -23,6 +25,11 @@ export class CreateClassDto {
   @Min(1)
   capacity!: number;
 
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateClassScheduleDto)
