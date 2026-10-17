@@ -176,14 +176,6 @@ export default function Navbar() {
             <span>📅</span>
             Horários
           </NavLink>
-
-          <NavLink
-            to="/attendance"
-            className={linkClass}
-          >
-            <span>✓</span>
-            Frequência
-          </NavLink>
         </div>
 
         <div className="nav-section">
@@ -197,14 +189,6 @@ export default function Navbar() {
           >
             <span>💰</span>
             Financeiro
-          </NavLink>
-
-          <NavLink
-            to="/payments"
-            className={linkClass}
-          >
-            <span>💳</span>
-            Pagamentos
           </NavLink>
 
           <NavLink

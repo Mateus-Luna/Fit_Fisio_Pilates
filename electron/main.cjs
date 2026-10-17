@@ -1,9 +1,11 @@
+
 const {
   app,
   BrowserWindow,
+  dialog,
 } = require('electron');
 
-const path = require('path');
+let serverInstance = null;
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -11,17 +13,29 @@ function createWindow() {
     height: 900,
     minWidth: 1100,
     minHeight: 700,
-
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
 
-  window.loadURL('http://localhost:5173');
+  window.loadURL('http://127.0.0.1:3000');
 }
 
-app.whenReady().then(() => {
+async function startApplication() {
+  process.env.PORT = '3000';
+  process.env.NODE_ENV = app.isPackaged
+    ? 'production'
+    : (process.env.NODE_ENV || 'development');
+
+  if (app.isPackaged) {
+    process.env.FITFISIO_DATA_DIR = app.getPath('userData');
+  }
+
+  const { serverReady } = require('../server.js');
+
+  serverInstance = await serverReady;
+
   createWindow();
 
   app.on('activate', () => {
@@ -29,6 +43,24 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+}
+
+app.whenReady().then(startApplication).catch((error) => {
+  console.error('Falha ao iniciar o FitFisio:', error);
+
+  dialog.showErrorBox(
+    'Não foi possível iniciar o FitFisio',
+    'O sistema não conseguiu iniciar. Verifique os arquivos da instalação.',
+  );
+
+  app.quit();
+});
+
+app.on('before-quit', () => {
+  if (serverInstance) {
+    serverInstance.close();
+    serverInstance = null;
+  }
 });
 
 app.on('window-all-closed', () => {

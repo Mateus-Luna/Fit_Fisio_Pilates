@@ -1,16 +1,21 @@
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('node:crypto');
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 
-app.use(cors());
-app.use(express.json());
+// Em produção, o Electron define FITFISIO_DATA_DIR para a pasta
+// persistente do usuário. No desenvolvimento, preservamos os caminhos atuais.
+const DATA_DIR = process.env.FITFISIO_DATA_DIR || __dirname;
 
-// Database persistence file
-const DB_FILE = path.join(__dirname, 'data_store.json');
+fs.mkdirSync(DATA_DIR, { recursive: true });
+
+const DB_FILE = path.join(DATA_DIR, 'data_store.json');
+
 
 const INITIAL_DATA = {
   users: [
@@ -362,34 +367,102 @@ const INITIAL_DATA = {
   ],
 };
 
-function loadDb() {
-  try {
-    if (fs.existsSync(DB_FILE)) {
-      const raw = fs.readFileSync(DB_FILE, 'utf8');
-      const data = JSON.parse(raw);
-      if (!data.classes || !Array.isArray(data.classes)) {
-        data.classes = INITIAL_DATA.classes;
-      }
-      if (!data.documents || !Array.isArray(data.documents)) {
-        data.documents = [];
-      }
-      if (!data.serviceReceipts || !Array.isArray(data.serviceReceipts)) {
-        data.serviceReceipts = [];
-      }
-      if (!data.payments || !Array.isArray(data.payments)) {
-        data.payments = INITIAL_DATA.payments;
-      }
-      if (!data.notifications || !Array.isArray(data.notifications)) {
-        data.notifications = INITIAL_DATA.notifications;
-      }
-      return data;
-    }
-  } catch (err) {
-    console.error('Error reading db file:', err);
-  }
-  saveDb(INITIAL_DATA);
-  return INITIAL_DATA;
+
+function createEmptyData() {
+  const now = new Date().toISOString();
+
+  const defaultModalities = INITIAL_DATA.modalities.map(
+    (modality) => ({
+      ...modality,
+      createdAt: now,
+      updatedAt: now,
+    }),
+  );
+
+  return {
+    users: [],
+    families: [],
+    modalities: defaultModalities,
+    students: [],
+    enrollments: [],
+    settings: [
+      {
+        id: 'set-studio-name',
+        key: 'studio_name',
+        value: 'FitFisio Pilates & Saúde',
+        description: 'Nome do estúdio exibido nos relatórios e recibos',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'set-contact-phone',
+        key: 'contact_phone',
+        value: '',
+        description: 'Telefone e WhatsApp oficial',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'set-pix-key',
+        key: 'pix_key',
+        value: '',
+        description: 'Chave Pix para pagamentos de mensalidades',
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+    classes: [],
+    documents: [],
+    serviceReceipts: [],
+    payments: [],
+    notifications: [],
+  };
 }
+
+
+function loadDb() {
+  if (fs.existsSync(DB_FILE)) {
+    // Se o arquivo existente estiver inválido, não o sobrescreva.
+    const raw = fs.readFileSync(DB_FILE, 'utf8');
+    const data = JSON.parse(raw);
+
+    const emptyData = createEmptyData();
+
+    const arrayKeys = [
+      'users',
+      'families',
+      'modalities',
+      'students',
+      'enrollments',
+      'settings',
+      'classes',
+      'documents',
+      'serviceReceipts',
+      'payments',
+      'notifications',
+    ];
+
+    for (const key of arrayKeys) {
+      if (!Array.isArray(data[key])) {
+        data[key] = emptyData[key];
+      }
+    }
+
+    // Mantém as modalidades padrão em bases realmente sem modalidades.
+    if (data.modalities.length === 0) {
+      data.modalities = emptyData.modalities;
+    }
+
+    saveDb(data);
+    return data;
+  }
+
+  // Base nova: sem usuários, alunos, famílias ou dados financeiros fictícios.
+  const data = createEmptyData();
+  saveDb(data);
+  return data;
+}
+
 
 function saveDb(data) {
   try {
@@ -419,43 +492,78 @@ function generateId(prefix = 'item') {
 // -------------------------------------------------------------
 // AUTH ROUTES
 // -------------------------------------------------------------
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+
+  return `scrypt$${salt}$${hash}`;
+}
+
+function verifyPassword(password, storedPassword) {
+  if (typeof storedPassword !== 'string') {
+    return false;
+  }
+
+  // Senhas novas armazenadas com scrypt.
+  if (storedPassword.startsWith('scrypt$')) {
+    const [, salt, storedHash] = storedPassword.split('$');
+
+    if (!salt || !storedHash) {
+      return false;
+    }
+
+    const suppliedHash = crypto
+      .scryptSync(password, salt, 64)
+      .toString('hex');
+
+    const expected = Buffer.from(storedHash, 'hex');
+    const supplied = Buffer.from(suppliedHash, 'hex');
+
+    return (
+      expected.length === supplied.length &&
+      crypto.timingSafeEqual(expected, supplied)
+    );
+  }
+
+  // Compatibilidade temporária com senhas antigas em texto puro.
+  // Após um login válido, elas serão convertidas para hash.
+  return password === storedPassword;
+}
+
 app.post(['/auth/login', '/api/auth/login'], (req, res) => {
   const { email, password } = req.body || {};
-  if (!email) {
-    return res.status(400).json({ message: 'E-mail é obrigatório.' });
+
+  if (
+    typeof email !== 'string' ||
+    typeof password !== 'string' ||
+    !email.trim() ||
+    !password
+  ) {
+    return res.status(400).json({
+      message: 'E-mail e senha são obrigatórios.',
+    });
   }
 
-  // Find user or match default admin
-  let user = db.users.find(
-    (u) => u.email?.toLowerCase() === email.toLowerCase()
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const user = db.users.find(
+    (item) => item.email?.toLowerCase() === normalizedEmail,
   );
 
-  // If no user exists yet in the database, seed Aline
-  if (!user && (email.includes('aline') || db.users.length === 0)) {
-    user = {
-      id: generateId('usr'),
-      name: 'Aline',
-      email: email,
-      password: password || 'admin',
-      active: true,
-      createdAt: new Date().toISOString(),
-    };
-    db.users.push(user);
-    saveDb(db);
+  if (!user || !user.active || !verifyPassword(
+    password,
+    user.passwordHash || user.password,
+  )) {
+    return res.status(401).json({
+      message: 'E-mail ou senha inválidos.',
+    });
   }
 
-  // For ease of use and testing, allow login if user exists
-  if (!user || !user.active) {
-    // If password provided and user not found, create a demo session for the user
-    user = {
-      id: generateId('usr'),
-      name: email.split('@')[0],
-      email: email,
-      password: password,
-      active: true,
-      createdAt: new Date().toISOString(),
-    };
-    db.users.push(user);
+  // Migra a senha antiga para hash após autenticação válida.
+  if (!user.passwordHash) {
+    user.passwordHash = hashPassword(password);
+    delete user.password;
     saveDb(db);
   }
 
@@ -471,28 +579,43 @@ app.post(['/auth/login', '/api/auth/login'], (req, res) => {
 
 app.post(['/auth/register', '/api/auth/register'], (req, res) => {
   const { name, email, password } = req.body || {};
-  if (!name || !email) {
-    return res.status(400).json({ message: 'Nome e e-mail são obrigatórios.' });
+
+  if (
+    typeof name !== 'string' ||
+    !name.trim() ||
+    typeof email !== 'string' ||
+    !email.trim() ||
+    typeof password !== 'string' ||
+    password.length < 8
+  ) {
+    return res.status(400).json({
+      message: 'Informe nome, e-mail e senha com pelo menos 8 caracteres.',
+    });
   }
 
-  const existing = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-  if (existing) {
-    return res.status(409).json({ message: 'Este e-mail já está cadastrado.' });
+  // O cadastro público só pode criar a primeira conta.
+  if (db.users.length > 0) {
+    return res.status(409).json({
+      message: 'O sistema já possui uma conta cadastrada.',
+    });
   }
+
+  const normalizedEmail = email.trim().toLowerCase();
 
   const newUser = {
     id: generateId('usr'),
-    name,
-    email,
-    password: password || '123',
+    name: name.trim(),
+    email: normalizedEmail,
+    passwordHash: hashPassword(password),
     active: true,
     createdAt: new Date().toISOString(),
   };
+
   db.users.push(newUser);
   saveDb(db);
 
   return res.status(201).json({
-    message: 'Usuário criado com sucesso.',
+    message: 'Usuária cadastrada com sucesso.',
     user: {
       id: newUser.id,
       name: newUser.name,
@@ -502,8 +625,11 @@ app.post(['/auth/register', '/api/auth/register'], (req, res) => {
 });
 
 app.get(['/auth/has-user', '/api/auth/has-user'], (req, res) => {
-  res.json({ registered: db.users.length > 0 });
+  res.json({
+    registered: Array.isArray(db.users) && db.users.length > 0,
+  });
 });
+
 
 // -------------------------------------------------------------
 // FAMILIES ROUTES
@@ -957,165 +1083,6 @@ app.get(['/classes/:id', '/api/classes/:id'], (req, res) => {
   res.json({ ...c, modality, enrolledCount });
 });
 
-app.post(['/classes', '/api/classes'], (req, res) => {
-  const { name, modalityId, capacity, schedules, active } = req.body;
-  if (!name || !name.trim()) {
-    return res.status(400).json({ message: 'O nome/identificação da turma é obrigatório.' });
-  }
-  if (!modalityId) {
-    return res.status(400).json({ message: 'A modalidade é obrigatória.' });
-  }
-  const modality = (db.modalities || []).find((m) => m.id === modalityId);
-  if (!modality) {
-    return res.status(404).json({ message: 'Modalidade não encontrada.' });
-  }
-  if (!modality.active) {
-    return res.status(400).json({ message: 'Não é possível criar horários para uma modalidade inativa.' });
-  }
-
-  let finalCapacity = capacity ? Number(capacity) : null;
-  if (modality.capacity && finalCapacity && finalCapacity > modality.capacity) {
-    return res.status(400).json({
-      message: `A capacidade da turma (${finalCapacity}) não pode exceder a capacidade máxima configurada para a modalidade (${modality.capacity}).`,
-    });
-  }
-  if (!finalCapacity && modality.capacity) {
-    finalCapacity = modality.capacity;
-  }
-
-  const validSchedules = Array.isArray(schedules)
-    ? schedules.map((s) => ({
-        dayOfWeek: Number(s.dayOfWeek),
-        startTime: String(s.startTime || '').trim(),
-        endTime: String(s.endTime || '').trim(),
-      }))
-    : [];
-
-  for (const s of validSchedules) {
-    if (!/^\d{2}:\d{2}$/.test(s.startTime) || !/^\d{2}:\d{2}$/.test(s.endTime)) {
-      return res.status(400).json({ message: 'Os horários devem estar no formato HH:mm (ex: 08:00).' });
-    }
-    if (s.startTime >= s.endTime) {
-      return res.status(400).json({ message: 'O horário de início deve ser anterior ao horário de término.' });
-    }
-    if (s.dayOfWeek < 0 || s.dayOfWeek > 6) {
-      return res.status(400).json({ message: 'Dia da semana inválido (0=Dom a 6=Sáb).' });
-    }
-  }
-
-  const newClass = {
-    id: generateId('cls'),
-    name: name.trim(),
-    modalityId,
-    capacity: finalCapacity,
-    schedules: validSchedules,
-    active: active !== undefined ? Boolean(active) : true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-
-  if (!db.classes) db.classes = [];
-  db.classes.push(newClass);
-  saveDb(db);
-
-  res.status(201).json({
-    ...newClass,
-    modality,
-    enrolledCount: 0,
-  });
-});
-
-app.patch(['/classes/:id', '/api/classes/:id'], (req, res) => {
-  const cls = (db.classes || []).find((c) => c.id === req.params.id);
-  if (!cls) return res.status(404).json({ message: 'Turma não encontrada.' });
-
-  const { name, modalityId, capacity, schedules, active } = req.body;
-
-  if (modalityId && modalityId !== cls.modalityId) {
-    const mod = (db.modalities || []).find((m) => m.id === modalityId);
-    if (!mod) return res.status(404).json({ message: 'Modalidade não encontrada.' });
-    cls.modalityId = modalityId;
-  }
-
-  const modality = (db.modalities || []).find((m) => m.id === cls.modalityId) || null;
-
-  if (capacity !== undefined) {
-    const newCap = capacity ? Number(capacity) : null;
-    const enrolledCount = (db.enrollments || []).filter(
-      (e) => e.classId === cls.id && ['ACTIVE', 'AWAITING_APPROVAL', 'PENDING_DOCUMENTATION'].includes(e.status)
-    ).length;
-    if (newCap !== null && newCap < enrolledCount) {
-      return res.status(400).json({
-        message: `A capacidade (${newCap}) não pode ser inferior ao número de alunos já matriculados (${enrolledCount}).`,
-      });
-    }
-    if (modality && modality.capacity && newCap && newCap > modality.capacity) {
-      return res.status(400).json({
-        message: `A capacidade da turma (${newCap}) não pode exceder a capacidade da modalidade (${modality.capacity}).`,
-      });
-    }
-    cls.capacity = newCap;
-  }
-
-  if (name !== undefined && name.trim()) {
-    cls.name = name.trim();
-  }
-
-  if (active !== undefined) {
-    cls.active = Boolean(active);
-  }
-
-  if (schedules !== undefined && Array.isArray(schedules)) {
-    const validSchedules = schedules.map((s) => ({
-      dayOfWeek: Number(s.dayOfWeek),
-      startTime: String(s.startTime || '').trim(),
-      endTime: String(s.endTime || '').trim(),
-    }));
-    for (const s of validSchedules) {
-      if (!/^\d{2}:\d{2}$/.test(s.startTime) || !/^\d{2}:\d{2}$/.test(s.endTime)) {
-        return res.status(400).json({ message: 'Os horários devem estar no formato HH:mm (ex: 08:00).' });
-      }
-      if (s.startTime >= s.endTime) {
-        return res.status(400).json({ message: 'O horário de início deve ser anterior ao horário de término.' });
-      }
-    }
-    cls.schedules = validSchedules;
-  }
-
-  cls.updatedAt = new Date().toISOString();
-  saveDb(db);
-
-  const enrolledCount = (db.enrollments || []).filter(
-    (e) => e.classId === cls.id && ['ACTIVE', 'AWAITING_APPROVAL', 'PENDING_DOCUMENTATION'].includes(e.status)
-  ).length;
-
-  res.json({
-    ...cls,
-    modality,
-    enrolledCount,
-  });
-});
-
-app.delete(['/classes/:id', '/api/classes/:id'], (req, res) => {
-  const index = (db.classes || []).findIndex((c) => c.id === req.params.id);
-  if (index === -1) return res.status(404).json({ message: 'Turma não encontrada.' });
-
-  const cls = db.classes[index];
-  const enrolledCount = (db.enrollments || []).filter(
-    (e) => e.classId === cls.id && ['ACTIVE', 'AWAITING_APPROVAL', 'PENDING_DOCUMENTATION', 'SUSPENDED'].includes(e.status)
-  ).length;
-
-  if (enrolledCount > 0) {
-    return res.status(400).json({
-      message: `Não é possível excluir este horário/turma pois existem ${enrolledCount} aluno(s) com matrícula vinculada a ele.`,
-    });
-  }
-
-  db.classes.splice(index, 1);
-  saveDb(db);
-  res.json({ message: 'Horário/turma excluído com sucesso.' });
-});
-
 // -------------------------------------------------------------
 // DISCOUNTS ROUTES
 // -------------------------------------------------------------
@@ -1198,35 +1165,12 @@ app.post(['/enrollments', '/api/enrollments'], (req, res) => {
     return res.status(409).json({ message: 'O aluno já possui uma matrícula ativa ou em andamento nessa modalidade.' });
   }
 
-  // Validação de turma se informada ou obrigatória
-  const isScheduleModality = ['hidroginastica', 'hidroterapia', 'natacao-adulto', 'natacao-crianca', 'fisioterapia'].includes(
-    (modality.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-')
-  );
-  if ((modality.requiresClass || isScheduleModality) && !classId) {
-    const hasAnyClasses = (db.classes || []).some((c) => c.modalityId === modalityId && c.active);
-    if (hasAnyClasses) {
-      return res.status(400).json({ message: 'Esta modalidade exige a seleção de um horário/turma cadastrado.' });
-    }
-  }
-
+  // Validação de turma se informada
   if (classId) {
     const cls = (db.classes || []).find((c) => c.id === classId);
     if (!cls) return res.status(404).json({ message: 'Turma não encontrada.' });
     if (cls.modalityId !== modalityId) {
       return res.status(400).json({ message: 'A turma selecionada não pertence à modalidade da matrícula.' });
-    }
-    if (!cls.active) {
-      return res.status(400).json({ message: 'A turma/horário selecionado está inativo.' });
-    }
-    if (cls.capacity) {
-      const enrolledCount = (db.enrollments || []).filter(
-        (e) => e.classId === cls.id && ['ACTIVE', 'AWAITING_APPROVAL', 'PENDING_DOCUMENTATION', 'SUSPENDED'].includes(e.status)
-      ).length;
-      if (enrolledCount >= cls.capacity) {
-        return res.status(400).json({
-          message: `A turma/horário selecionado não possui vagas disponíveis (${enrolledCount}/${cls.capacity}).`,
-        });
-      }
     }
   }
 
@@ -1312,27 +1256,6 @@ app.patch(['/enrollments/:id', '/api/enrollments/:id'], (req, res) => {
   }
 
   if (classId !== undefined) {
-    if (classId) {
-      const cls = (db.classes || []).find((c) => c.id === classId);
-      if (!cls) return res.status(404).json({ message: 'Turma não encontrada.' });
-      const targetModalityId = modalityId || enrollment.modalityId;
-      if (cls.modalityId !== targetModalityId) {
-        return res.status(400).json({ message: 'A turma selecionada não pertence à modalidade da matrícula.' });
-      }
-      if (!cls.active && cls.id !== enrollment.classId) {
-        return res.status(400).json({ message: 'A turma/horário selecionado está inativo.' });
-      }
-      if (cls.capacity && cls.id !== enrollment.classId) {
-        const enrolledCount = (db.enrollments || []).filter(
-          (e) => e.classId === cls.id && e.id !== enrollment.id && ['ACTIVE', 'AWAITING_APPROVAL', 'PENDING_DOCUMENTATION', 'SUSPENDED'].includes(e.status)
-        ).length;
-        if (enrolledCount >= cls.capacity) {
-          return res.status(400).json({
-            message: `A turma/horário selecionado não possui vagas disponíveis (${enrolledCount}/${cls.capacity}).`,
-          });
-        }
-      }
-    }
     enrollment.classId = classId || null;
   }
 
@@ -1458,22 +1381,51 @@ function getTableRowYCoordinate(documentServiceName) {
   }
 }
 
+
 function resolveServiceReceiptTemplatePath() {
   const candidates = [
-    path.join(__dirname, 'backend/assets/documents/RECIBO SERVICO.pdf'),
-    path.join(__dirname, 'assets/documents/RECIBO SERVICO.pdf'),
+    path.join(
+      __dirname,
+      'backend',
+      'assets',
+      'documents',
+      'RECIBO SERVICO.pdf',
+    ),
+    path.join(
+      __dirname,
+      'assets',
+      'documents',
+      'RECIBO SERVICO.pdf',
+    ),
+    ...(process.resourcesPath
+      ? [
+          path.join(
+            process.resourcesPath,
+            'assets',
+            'documents',
+            'RECIBO SERVICO.pdf',
+          ),
+        ]
+      : []),
   ];
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
   }
-  throw new Error('Template original RECIBO SERVICO.pdf não encontrado.');
+
+  throw new Error(
+    'Template original RECIBO SERVICO.pdf não encontrado.',
+  );
 }
 
+
 function resolveServiceReceiptUploadDir() {
-  const uploadDir = path.join(__dirname, 'backend/uploads/documents/receipts');
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-  }
+  const uploadDir = path.join(DATA_DIR, 'documents', 'receipts');
+
+  fs.mkdirSync(uploadDir, { recursive: true });
+
   return uploadDir;
 }
 
@@ -2427,99 +2379,21 @@ app.patch(['/payments/:id/cancel', '/api/payments/:id/cancel'], (req, res) => {
 });
 
 // -------------------------------------------------------------
-// BACKUP & RESTORE ROUTES
-// -------------------------------------------------------------
-app.get(['/backup/export', '/api/backup/export'], (req, res) => {
-  try {
-    const backupData = {
-      version: '1.0.0',
-      appName: 'FitFisio Pilates',
-      exportedAt: new Date().toISOString(),
-      data: {
-        users: db.users || [],
-        families: db.families || [],
-        students: db.students || [],
-        modalities: db.modalities || [],
-        classes: db.classes || [],
-        enrollments: db.enrollments || [],
-        payments: db.payments || [],
-        settings: db.settings || [],
-        documents: db.documents || [],
-        serviceReceipts: db.serviceReceipts || [],
-        notifications: db.notifications || [],
-      },
-    };
-
-    const filename = `backup-fitfisio-${new Date().toISOString().slice(0, 10)}.json`;
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Type', 'application/json');
-    res.json(backupData);
-  } catch (err) {
-    console.error('Erro ao gerar backup:', err);
-    res.status(500).json({ message: 'Erro ao gerar arquivo de backup.' });
-  }
-});
-
-app.post(['/backup/restore', '/api/backup/restore'], (req, res) => {
-  try {
-    let payload = req.body;
-    if (payload.data && typeof payload.data === 'object') {
-      payload = payload.data;
-    }
-
-    if (!payload || typeof payload !== 'object') {
-      return res.status(400).json({ message: 'Formato de arquivo de backup inválido.' });
-    }
-
-    // Criar cópia de segurança antes de restaurar
-    const safetyBackupFile = path.join(__dirname, `data_store_pre_restore_${Date.now()}.json`);
-    try {
-      fs.writeFileSync(safetyBackupFile, JSON.stringify(db, null, 2), 'utf8');
-    } catch {}
-
-    if (Array.isArray(payload.users)) db.users = payload.users;
-    if (Array.isArray(payload.families)) db.families = payload.families;
-    if (Array.isArray(payload.students)) db.students = payload.students;
-    if (Array.isArray(payload.modalities)) db.modalities = payload.modalities;
-    if (Array.isArray(payload.classes)) db.classes = payload.classes;
-    if (Array.isArray(payload.enrollments)) db.enrollments = payload.enrollments;
-    if (Array.isArray(payload.payments)) db.payments = payload.payments;
-    if (Array.isArray(payload.settings)) db.settings = payload.settings;
-    if (Array.isArray(payload.documents)) db.documents = payload.documents;
-    if (Array.isArray(payload.serviceReceipts)) db.serviceReceipts = payload.serviceReceipts;
-    if (Array.isArray(payload.notifications)) db.notifications = payload.notifications;
-
-    saveDb(db);
-
-    res.json({
-      success: true,
-      message: 'Backup restaurado com sucesso!',
-      counts: {
-        students: db.students?.length || 0,
-        modalities: db.modalities?.length || 0,
-        classes: db.classes?.length || 0,
-        enrollments: db.enrollments?.length || 0,
-        payments: db.payments?.length || 0,
-        families: db.families?.length || 0,
-      },
-    });
-  } catch (err) {
-    console.error('Erro ao restaurar backup:', err);
-    res.status(500).json({ message: 'Falha ao restaurar backup: ' + err.message });
-  }
-});
-
-// -------------------------------------------------------------
 // FRONTEND SERVING (DEV & PROD)
 // -------------------------------------------------------------
+
 async function startServer() {
   const isDev = process.env.NODE_ENV !== 'production';
   const distPath = path.join(__dirname, 'frontend', 'dist');
 
   let viteRunning = false;
+
   if (isDev) {
     try {
-      const { createServer } = await import('./frontend/node_modules/vite/dist/node/index.js');
+      const { createServer } = await import(
+        './frontend/node_modules/vite/dist/node/index.js'
+      );
+
       const vite = await createServer({
         root: path.join(__dirname, 'frontend'),
         server: {
@@ -2528,29 +2402,51 @@ async function startServer() {
         },
         appType: 'spa',
       });
+
       app.use(vite.middlewares);
       viteRunning = true;
-      console.log('✓ Vite middleware initialized successfully in dev mode');
+
+      console.log('Vite middleware inicializado.');
     } catch (err) {
-      console.warn('Vite dev middleware could not be loaded, using static files:', err.message);
+      console.warn(
+        'Vite indisponível; tentando usar o frontend compilado:',
+        err.message,
+      );
     }
   }
 
   if (!viteRunning) {
-    if (fs.existsSync(distPath)) {
-      app.use(express.static(distPath));
-      app.get('*', (req, res) => {
-        res.sendFile(path.join(distPath, 'index.html'));
-      });
-      console.log('✓ Serving pre-built frontend from frontend/dist');
-    } else {
-      console.error('Warning: frontend/dist does not exist! Please run "npm run build"');
+    if (!fs.existsSync(path.join(distPath, 'index.html'))) {
+      throw new Error(
+        'Frontend compilado não encontrado. Execute npm run build.',
+      );
     }
+
+    app.use(express.static(distPath));
+
+    // Sintaxe compatível com Express 5 para a navegação SPA.
+    app.get(/.*/, (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+
+    console.log('Frontend compilado carregado.');
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 FitFisio Pilates server listening on http://0.0.0.0:${PORT}`);
+  return new Promise((resolve, reject) => {
+    const server = app.listen(PORT, '127.0.0.1', () => {
+      console.log(
+        `FitFisio disponível em http://127.0.0.1:${PORT}`,
+      );
+      resolve(server);
+    });
+
+    server.once('error', reject);
   });
 }
+
+const serverReady = startServer();
+
+module.exports = { serverReady };
+
 
 startServer();
